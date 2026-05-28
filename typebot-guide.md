@@ -56,3 +56,38 @@ Assim você evita:
 - `servico_id` inválido;
 - horário duplicado;
 - exposição indevida de permissões amplas.
+
+
+## 7) Bloqueios de agenda (férias, almoço, folga)
+Com a nova tabela `bloqueios_agenda`, o painel e o banco passam a impedir agendamentos em períodos indisponíveis.
+
+Estrutura principal do bloqueio:
+
+```json
+{
+  "prof_id": "UUID_DO_BARBEIRO",
+  "titulo": "Horário de almoço",
+  "tipo": "almoco",
+  "inicio": "2026-05-28T12:00:00-03:00",
+  "fim": "2026-05-28T13:00:00-03:00",
+  "observacao": "Retorno às 13h"
+}
+```
+
+Tipos sugeridos: `almoco`, `ferias`, `folga`, `pausa` e `personalizado`.
+
+## 8) O que muda no fluxo do bot
+Mesmo que o Typebot tente inserir um horário dentro de um bloqueio, o banco agora rejeita a operação automaticamente por trigger. Ainda assim, o ideal continua sendo validar antes no fluxo para não oferecer horários indisponíveis.
+
+Fluxo recomendado:
+
+```text
+Typebot -> consulta disponibilidade -> ignora bloqueios_agenda -> tenta reservar -> banco valida novamente
+```
+
+## 9) Edge Function / backend recomendado
+Se você usar Edge Function, faça a checagem de sobreposição antes do insert final:
+
+- o horário escolhido não pode cruzar com `bloqueios_agenda`;
+- o horário escolhido não pode cruzar com outro `agendamento` ativo;
+- o banco continuará como camada final de proteção.
