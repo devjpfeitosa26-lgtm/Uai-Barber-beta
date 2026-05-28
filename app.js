@@ -461,7 +461,14 @@ function abrirOnboarding() {
 
 /**
  * PASSO 1 — Salva o nome comercial do barbeiro.
- * Atualiza o nome na tabela `profissionais` e avança para o passo 2.
+ *
+ * Usa upsert para cobrir dois cenários:
+ *  a) Linha já existe (trigger rodou no cadastro) → apenas atualiza o nome.
+ *  b) Linha NÃO existe (trigger não rodou, usuário antigo, etc.) → cria a linha.
+ *
+ * Pré-requisito no Supabase RLS:
+ *   create policy "profissionais_inserir_proprio" on public.profissionais
+ *     for insert with check (auth.uid() = id);
  */
 async function onbSalvarNome() {
   const nome = $('onb-input-nome').value.trim();
@@ -474,12 +481,12 @@ async function onbSalvarNome() {
   btn.textContent = 'Salvando...';
   btn.disabled = true;
 
-  // UPDATE apenas — o trigger on_auth_user_created já garante que a linha existe.
-  // Upsert/insert quebraria o RLS pois não há política de INSERT em profissionais.
+  // Upsert: INSERT se não existir, UPDATE se já existir.
+  // Garante que a linha em `profissionais` existe ANTES de tentar inserir
+  // serviços (que têm FK para esta tabela).
   const { error } = await sb
     .from('profissionais')
-    .update({ nome: nome })
-    .eq('id', state.user.id);
+    .upsert({ id: state.user.id, nome: nome }, { onConflict: 'id' });
 
   btn.textContent = 'Avançar: Configurar Catálogo →';
   btn.disabled = false;
@@ -489,11 +496,18 @@ async function onbSalvarNome() {
     return;
   }
 
-  // Atualiza estado e exibição do sidebar imediatamente
+  // Recarrega e confirma que a linha realmente existe agora
+  await loadProfissional();
+
+  if (!state.profissional) {
+    setFeedback('onb-feedback-1', 'Não foi possível confirmar o cadastro. Tente novamente.', 'error');
+    return;
+  }
+
+  // Atualiza sidebar imediatamente
   state.onboarding.nomeTemp = nome;
   $('prof-name').textContent = nome;
   $('prof-avatar').textContent = nome.charAt(0).toUpperCase();
-  await loadProfissional();
 
   irParaEtapaOnb(2);
 }
