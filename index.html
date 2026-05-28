@@ -1,92 +1,223 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Uai Barbearia | Login</title>
-    <link rel="stylesheet" href="./style.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UaiBarber | Entrar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #080b10;
+      --panel: #0f1520;
+      --panel-2: #141d2e;
+      --border: rgba(255,255,255,0.07);
+      --gold: #c9933a;
+      --gold-light: #e8b56a;
+      --gold-glow: rgba(201,147,58,0.18);
+      --text: #eef0f4;
+      --muted: #6b7a94;
+      --success: #22c55e;
+      --danger: #ef4444;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 50% at 50% -10%, rgba(201,147,58,0.12), transparent),
+        radial-gradient(ellipse 40% 40% at 80% 80%, rgba(201,147,58,0.06), transparent);
+      pointer-events: none;
+    }
+    .noise {
+      position: fixed;
+      inset: 0;
+      opacity: 0.035;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      pointer-events: none;
+    }
+    .card {
+      position: relative;
+      width: min(100%, 440px);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 40px 36px;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(201,147,58,0.08);
+      animation: fadeUp 0.5s ease both;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .logo-area {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 32px;
+    }
+    .logo-icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, var(--gold-light), var(--gold));
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 22px;
+      color: #0a0d14;
+      box-shadow: 0 8px 24px var(--gold-glow);
+      flex-shrink: 0;
+    }
+    .logo-text { font-family: 'Syne', sans-serif; }
+    .logo-text strong { display: block; font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+    .logo-text span { font-size: 12px; color: var(--muted); font-weight: 400; text-transform: uppercase; letter-spacing: 0.12em; }
+    h1 { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.02em; }
+    .subtitle { font-size: 14px; color: var(--muted); margin-bottom: 28px; line-height: 1.5; }
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-size: 13px; font-weight: 500; color: #b0bac9; margin-bottom: 7px; }
+    .field input {
+      width: 100%;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      padding: 13px 16px;
+      font: inherit;
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .field input:focus {
+      border-color: rgba(201,147,58,0.5);
+      box-shadow: 0 0 0 3px var(--gold-glow);
+    }
+    .btn-primary {
+      width: 100%;
+      background: linear-gradient(135deg, var(--gold-light), var(--gold));
+      color: #0a0d14;
+      border: none;
+      border-radius: 12px;
+      padding: 14px;
+      font: inherit;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: transform 0.15s, filter 0.15s, opacity 0.15s;
+    }
+    .btn-primary:hover { transform: translateY(-1px); filter: brightness(1.06); }
+    .btn-primary:active { transform: translateY(0); filter: brightness(0.97); }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .feedback {
+      margin-top: 14px;
+      font-size: 13px;
+      min-height: 20px;
+      text-align: center;
+      border-radius: 8px;
+      padding: 0;
+      transition: all 0.2s;
+    }
+    .feedback.error { color: #f87171; }
+    .feedback.success { color: #4ade80; }
+    .divider { height: 1px; background: var(--border); margin: 24px 0; }
+    .register-link { text-align: center; font-size: 13px; color: var(--muted); }
+    .register-link a { color: var(--gold-light); text-decoration: none; font-weight: 500; }
+    .register-link a:hover { text-decoration: underline; }
+  </style>
 </head>
-
 <body>
-    <main class="page-shell centered">
-        <section class="auth-card">
-            <div class="brand-mark">B</div>
-            <h1>Entrar no painel</h1>
-            <p class="subtitle">Acesse sua agenda, acompanhe o faturamento e gerencie seus horários em tempo real.</p>
+  <div class="noise"></div>
+  <div class="card">
+    <div class="logo-area">
+      <div class="logo-icon">U</div>
+      <div class="logo-text">
+        <strong>UaiBarber</strong>
+        <span>Software para Barbearias</span>
+      </div>
+    </div>
 
-            <form id="login-form" class="form-grid">
-                <div class="field">
-                    <label for="email">E-mail</label>
-                    <input id="email" type="email" placeholder="barbeiro@empresa.com" required />
-                </div>
+    <h1>Bem-vindo de volta</h1>
+    <p class="subtitle">Acesse sua agenda, acompanhe o faturamento e gerencie seus horários.</p>
 
-                <div class="field">
-                    <label for="password">Senha</label>
-                    <input id="password" type="password" placeholder="••••••••" required />
-                </div>
+    <div class="field">
+      <label for="email">E-mail</label>
+      <input id="email" type="email" placeholder="barbeiro@email.com" autocomplete="email" />
+    </div>
+    <div class="field">
+      <label for="password">Senha</label>
+      <input id="password" type="password" placeholder="••••••••" autocomplete="current-password" />
+    </div>
 
-                <button class="btn" type="submit">Entrar</button>
-            </form>
+    <button class="btn-primary" id="login-btn">Entrar no painel</button>
+    <p class="feedback" id="feedback"></p>
 
-            <p id="login-feedback" class="feedback"></p>
-            <p class="footer-note">Substitua a URL e a chave pública do Supabase no script desta página antes de publicar.</p>
-        </section>
-    </main>
+    <div class="divider"></div>
+    <p class="register-link">Não tem conta? <a href="mailto:contato@uaibarber.com.br">Fale conosco</a></p>
+  </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
     const SUPABASE_URL = 'https://quzfhkuiduvukuxcmfoq.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1emZoa3VpZHV2dWt1eGNtZm9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MDk3OTAsImV4cCI6MjA5NTQ4NTc5MH0.ztjj-YfMwJgbh606RisxEDW2NzMbfrCMOzzC50qaT3M';
-    
-    // MUDANÇA AQUI: Alterado o nome da constante para evitar conflito com a biblioteca global
-    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    const form = document.getElementById('login-form');
-    const feedback = document.getElementById('login-feedback');
+    const emailEl = document.getElementById('email');
+    const passwordEl = document.getElementById('password');
+    const btn = document.getElementById('login-btn');
+    const feedback = document.getElementById('feedback');
 
-    async function checkExistingSession() {
-        const {
-            data: {
-                session
-            }
-        } = await supabaseClient.auth.getSession(); // Ajustado aqui
-        if (session) {
-            window.location.href = './dashboard.html';
-        }
+    function setFeedback(msg, type = '') {
+      feedback.textContent = msg;
+      feedback.className = 'feedback ' + type;
     }
 
-    function setFeedback(message, type = '') {
-        feedback.textContent = message;
-        feedback.className = `feedback ${type}`.trim();
+    async function init() {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) window.location.href = './dashboard.html';
     }
 
-    form.addEventListener('submit', async(event) => {
-        event.preventDefault();
-        setFeedback('Entrando...');
+    btn.addEventListener('click', async () => {
+      const email = emailEl.value.trim();
+      const password = passwordEl.value;
+      if (!email || !password) { setFeedback('Preencha e-mail e senha.', 'error'); return; }
 
-        const email = document.getElementById('email').value.trim();
-        const password = document.getElementById('password').value;
+      btn.disabled = true;
+      setFeedback('Entrando...');
 
-        const {
-            error
-        } = await supabaseClient.auth.signInWithPassword({ // Ajustado aqui
-            email,
-            password
-        });
+      const { error } = await sb.auth.signInWithPassword({ email, password });
 
-        if (error) {
-            setFeedback(error.message, 'error');
-            return;
-        }
+      if (error) {
+        const msg = error.message.includes('Invalid') ? 'E-mail ou senha incorretos.' : error.message;
+        setFeedback(msg, 'error');
+        btn.disabled = false;
+        return;
+      }
 
-        setFeedback('Login realizado com sucesso. Redirecionando...', 'success');
-        window.location.href = './dashboard.html';
+      setFeedback('Sucesso! Redirecionando...', 'success');
+      setTimeout(() => { window.location.href = './dashboard.html'; }, 600);
     });
 
-    checkExistingSession();
-</script>
-</body>
+    [emailEl, passwordEl].forEach(el => {
+      el.addEventListener('keydown', e => { if (e.key === 'Enter') btn.click(); });
+    });
 
+    init();
+  </script>
+</body>
 </html>
