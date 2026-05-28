@@ -8,12 +8,13 @@ const state = {
   user: null,
   profissional: null,
   servicos: [],
-  agendamentos: [],        // for the selected date
-  agendamentosAll: [],     // for overview (current month)
-  currentDate: new Date(), // date shown in agenda
+  agendamentos: [],
+  agendamentosAll: [],
+  currentDate: new Date(),
   filterStatus: 'todos',
   activeView: 'agenda',
   realtimeChannel: null,
+  alertAppt: null, // for whatsapp alert modal
 };
 
 /* ────── HELPERS ────── */
@@ -24,6 +25,7 @@ const fmt = {
   date: d => new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).format(d),
   dateShort: d => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(d),
   isoDate: d => d.toISOString().slice(0, 10),
+  dateFull: d => new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }).format(new Date(d)),
 };
 
 function setFeedback(id, msg, type = '') {
@@ -38,9 +40,8 @@ function isToday(date) {
   return date.getDate() === t.getDate() && date.getMonth() === t.getMonth() && date.getFullYear() === t.getFullYear();
 }
 
-/* ────── SUBSCRIPTION (MOCK – substitua por dados reais) ────── */
+/* ────── SUBSCRIPTION (MOCK) ────── */
 function loadSubscription() {
-  // Simula assinatura ativa. Substitua por query real quando tiver a tabela.
   const today = new Date();
   const start = new Date(today.getFullYear(), today.getMonth(), 1);
   const end   = new Date(today.getFullYear(), today.getMonth() + 1, 0);
@@ -48,7 +49,6 @@ function loadSubscription() {
   const daysLeft  = Math.ceil((end - today) / 86400000);
   const pct = Math.round((1 - daysLeft / daysTotal) * 100);
 
-  // Sidebar mini banner
   const dot = $('sub-dot');
   const titleMini = $('sub-title-mini');
   const detailMini = $('sub-detail-mini');
@@ -67,7 +67,6 @@ function loadSubscription() {
   detailMini.textContent = `${daysLeft} dias restantes`;
   barMini.style.width = Math.max(5, 100 - pct) + '%';
 
-  // Full subscription view
   $('sub-plan-name').textContent = 'Pro Mensal';
   $('sub-expiry').textContent = fmt.dateShort(end);
   $('sub-days-left').textContent = daysLeft + ' dias';
@@ -99,12 +98,23 @@ async function loadProfissional() {
     .eq('id', state.user.id)
     .single();
 
-  if (error) throw new Error('Perfil não encontrado.');
-  state.profissional = data;
+  if (error || !data) {
+    // Profile may not exist yet — create it
+    const nome = state.user.user_metadata?.nome || state.user.email?.split('@')[0] || 'Barbeiro';
+    const { data: inserted, error: insertErr } = await sb
+      .from('profissionais')
+      .upsert({ id: state.user.id, nome }, { onConflict: 'id' })
+      .select('id, nome')
+      .single();
+    if (insertErr) throw new Error('Erro ao criar perfil: ' + insertErr.message);
+    state.profissional = inserted;
+  } else {
+    state.profissional = data;
+  }
 
-  const initial = (data.nome || '?').trim().charAt(0).toUpperCase();
+  const initial = (state.profissional.nome || '?').trim().charAt(0).toUpperCase();
   $('user-avatar').textContent = initial;
-  $('user-name-sidebar').textContent = data.nome;
+  $('user-name-sidebar').textContent = state.profissional.nome;
 }
 
 /* ────── SERVIÇOS ────── */
@@ -159,7 +169,6 @@ function renderServicesGrid() {
     </div>
   `).join('');
 
-  // add empty slot
   grid.innerHTML += `
     <button class="btn-add-service" id="btn-add-extra-service">
       <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -173,6 +182,12 @@ function renderServicesGrid() {
 }
 
 async function saveService() {
+  // Guarantee profissional exists before inserting service (fixes FK error)
+  if (!state.profissional) {
+    setFeedback('s-feedback', 'Perfil não carregado. Recarregue a página.', 'error');
+    return;
+  }
+
   const nome    = $('s-nome').value.trim();
   const preco   = parseFloat($('s-preco').value);
   const duracao = parseInt($('s-duracao').value, 10);
@@ -184,11 +199,21 @@ async function saveService() {
   $('save-service-btn').disabled = true;
   setFeedback('s-feedback', 'Salvando...');
 
+  // Ensure prof row exists (safety upsert)
+  await sb.from('profissionais').upsert(
+    { id: state.user.id, nome: state.profissional.nome },
+    { onConflict: 'id' }
+  );
+
   const { error } = await sb.from('servicos').insert({
     prof_id: state.user.id, nome, preco, duracao_minutos: duracao
   });
 
-  if (error) { setFeedback('s-feedback', error.message, 'error'); $('save-service-btn').disabled = false; return; }
+  if (error) {
+    setFeedback('s-feedback', 'Erro: ' + error.message, 'error');
+    $('save-service-btn').disabled = false;
+    return;
+  }
 
   setFeedback('s-feedback', 'Serviço criado!', 'success');
   await loadServicos();
@@ -266,6 +291,7 @@ function renderTimeline() {
 
     const canComplete = ['pendente', 'confirmado'].includes(item.status);
     const canCancel   = ['pendente', 'confirmado'].includes(item.status);
+    const hasWhatsapp = !!item.whatsapp_cliente;
 
     return `
     <div class="appt-card" data-id="${item.id}">
@@ -282,6 +308,9 @@ function renderTimeline() {
         <div class="appt-price">${item.servicos?.preco ? fmt.brl(item.servicos.preco) : '–'}</div>
         <span class="pill pill-${item.status}">${item.status}</span>
         <div class="appt-actions">
+          ${hasWhatsapp ? `<button class="btn-icon whatsapp-alert" data-action="alert" data-id="${item.id}" title="Enviar alerta WhatsApp">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          </button>` : ''}
           ${canComplete ? `<button class="btn-icon complete" data-action="complete" data-id="${item.id}" title="Marcar como concluído">
             <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
           </button>` : ''}
@@ -293,12 +322,12 @@ function renderTimeline() {
     </div>`;
   }).join('');
 
-  // Bind action buttons
   tl.querySelectorAll('[data-action]').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
       if (btn.dataset.action === 'complete') updateApptStatus(btn.dataset.id, 'concluido');
       if (btn.dataset.action === 'cancel')   updateApptStatus(btn.dataset.id, 'cancelado');
+      if (btn.dataset.action === 'alert')    openAlertModal(btn.dataset.id);
     });
   });
 }
@@ -307,7 +336,6 @@ function renderDaySummary() {
   const active = state.agendamentos.filter(a => a.status !== 'cancelado');
   const fat = active.reduce((acc, a) => acc + Number(a.servicos?.preco || 0), 0);
 
-  // Side panel
   $('side-faturamento').textContent = fmt.brl(fat);
   $('side-faturamento-sub').textContent = `${active.length} atendimento${active.length !== 1 ? 's' : ''}`;
 
@@ -345,7 +373,6 @@ function renderOverview() {
   const monthActive = state.agendamentosAll.filter(a => a.status !== 'cancelado');
   $('ov-mes').textContent = monthActive.length;
 
-  // Next appointment
   const future = state.agendamentosAll
     .filter(a => new Date(a.horario_inicio) > new Date() && ['confirmado', 'pendente'].includes(a.status))
     .sort((a, b) => new Date(a.horario_inicio) - new Date(b.horario_inicio));
@@ -358,7 +385,6 @@ function renderOverview() {
     $('ov-proximo-sub').textContent = 'sem próximos agendamentos';
   }
 
-  // Recent list (last 8 of month)
   const recent = state.agendamentosAll.slice(0, 8);
   const list = $('ov-recent-list');
   if (!recent.length) {
@@ -404,7 +430,6 @@ async function saveAppointment() {
 
   const horario_inicio = new Date(`${data}T${hora}:00`).toISOString();
 
-  // Check conflict
   const { data: conflict } = await sb
     .from('agendamentos')
     .select('id')
@@ -430,13 +455,99 @@ async function saveAppointment() {
   if (error) { setFeedback('m-feedback', error.message, 'error'); $('save-appt-btn').disabled = false; return; }
 
   setFeedback('m-feedback', 'Agendamento salvo!', 'success');
-  // Move agenda view to the date of the new appointment
   state.currentDate = new Date(`${data}T${hora}:00`);
   await loadAgenda(state.currentDate);
   await loadMonthAgenda();
   updateDateLabel();
   setTimeout(closeApptModal, 500);
   $('save-appt-btn').disabled = false;
+}
+
+/* ────── WHATSAPP ALERT MODAL ────── */
+const ALERT_TEMPLATES = [
+  {
+    id: 'lembrete',
+    icon: '🔔',
+    label: 'Lembrete de corte',
+    text: (appt) => `Olá, ${appt.nome_cliente}! 👋\n\nPassando para lembrar que você tem um agendamento na *UaiBarber* ${fmt.dateFull(appt.horario_inicio) ? 'marcado para ' + fmt.dateFull(appt.horario_inicio) : ''}.\n\nEstamos te esperando! ✂️`,
+  },
+  {
+    id: 'cancelamento',
+    icon: '❌',
+    label: 'Aviso de cancelamento',
+    text: (appt) => `Olá, ${appt.nome_cliente}!\n\nInfelizmente precisamos *cancelar* seu agendamento que estava marcado para ${fmt.dateFull(appt.horario_inicio)}.\n\nPedimos desculpas pelo inconveniente. Entre em contato para reagendarmos! 🙏`,
+  },
+  {
+    id: 'reagendamento',
+    icon: '📅',
+    label: 'Proposta de reagendamento',
+    text: (appt) => `Olá, ${appt.nome_cliente}! 😊\n\nGostaríamos de *remarcar* seu atendimento que estava para ${fmt.dateFull(appt.horario_inicio)}.\n\nQual horário fica melhor para você? Responda aqui e já agendamos! ✂️`,
+  },
+  {
+    id: 'confirmacao',
+    icon: '✅',
+    label: 'Confirmação de horário',
+    text: (appt) => `Olá, ${appt.nome_cliente}! ✅\n\nSeu agendamento está *confirmado* para ${fmt.dateFull(appt.horario_inicio)}.\n\nQualquer dúvida, é só chamar. Te esperamos! 💈`,
+  },
+  {
+    id: 'personalizada',
+    icon: '✏️',
+    label: 'Mensagem personalizada',
+    text: (appt) => `Olá, ${appt.nome_cliente}! `,
+  },
+];
+
+function openAlertModal(apptId) {
+  const appt = state.agendamentos.find(a => a.id === apptId);
+  if (!appt) return;
+  state.alertAppt = appt;
+
+  $('alert-client-name').textContent = appt.nome_cliente;
+  $('alert-client-phone').textContent = appt.whatsapp_cliente;
+  $('alert-appt-info').textContent = `${appt.servicos?.nome || 'Serviço'} • ${fmt.time(appt.horario_inicio)}`;
+
+  // Render template chips
+  const chips = $('alert-template-chips');
+  chips.innerHTML = ALERT_TEMPLATES.map(t => `
+    <button class="alert-chip" data-template="${t.id}">
+      <span>${t.icon}</span> ${t.label}
+    </button>
+  `).join('');
+
+  chips.querySelectorAll('.alert-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      chips.querySelectorAll('.alert-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      const tpl = ALERT_TEMPLATES.find(t => t.id === chip.dataset.template);
+      if (tpl) $('alert-message').value = tpl.text(appt);
+    });
+  });
+
+  // Select first template by default
+  const defaultTpl = ALERT_TEMPLATES[0];
+  chips.querySelector('[data-template="lembrete"]')?.classList.add('active');
+  $('alert-message').value = defaultTpl.text(appt);
+
+  $('modal-alert').classList.add('open');
+}
+
+function closeAlertModal() {
+  $('modal-alert').classList.remove('open');
+  state.alertAppt = null;
+}
+
+function sendWhatsappAlert() {
+  const appt = state.alertAppt;
+  if (!appt) return;
+  const msg = $('alert-message').value.trim();
+  if (!msg) { alert('Digite uma mensagem antes de enviar.'); return; }
+
+  let phone = appt.whatsapp_cliente.replace(/\D/g, '');
+  if (!phone.startsWith('55')) phone = '55' + phone;
+
+  const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+  window.open(url, '_blank');
+  closeAlertModal();
 }
 
 /* ────── DATE NAVIGATION ────── */
@@ -526,11 +637,7 @@ function startRealtime() {
 
 /* ────── LOGOUT ────── */
 async function logout() {
-  try {
-    await sb.auth.signOut();
-  } catch (e) {
-    // ignore errors, force redirect anyway
-  }
+  try { await sb.auth.signOut(); } catch (e) {}
   window.location.replace('./index.html');
 }
 
@@ -546,10 +653,8 @@ function closeSidebar() {
 
 /* ────── BIND EVENTS ────── */
 function bindEvents() {
-  // Logout
   $('logout-btn').addEventListener('click', logout);
 
-  // Nav items
   document.querySelectorAll('.nav-item[data-view]').forEach(btn => {
     btn.addEventListener('click', () => {
       switchView(btn.dataset.view);
@@ -557,7 +662,6 @@ function bindEvents() {
     });
   });
 
-  // Date nav
   $('prev-day').addEventListener('click', () => changeDate(-1));
   $('next-day').addEventListener('click', () => changeDate(1));
   $('go-today').addEventListener('click', () => {
@@ -566,19 +670,21 @@ function bindEvents() {
     loadAgenda(state.currentDate);
   });
 
-  // Appointment modal
   $('open-modal-btn').addEventListener('click', openApptModal);
   $('close-modal-btn').addEventListener('click', closeApptModal);
   $('save-appt-btn').addEventListener('click', saveAppointment);
   $('modal-agendamento').addEventListener('click', e => { if (e.target === $('modal-agendamento')) closeApptModal(); });
 
-  // Service modal
   $('open-service-modal-btn').addEventListener('click', openServiceModal);
   $('close-service-modal-btn').addEventListener('click', closeServiceModal);
   $('save-service-btn').addEventListener('click', saveService);
   $('modal-servico').addEventListener('click', e => { if (e.target === $('modal-servico')) closeServiceModal(); });
 
-  // Status filter
+  // Alert modal
+  $('close-alert-modal-btn').addEventListener('click', closeAlertModal);
+  $('send-alert-btn').addEventListener('click', sendWhatsappAlert);
+  $('modal-alert').addEventListener('click', e => { if (e.target === $('modal-alert')) closeAlertModal(); });
+
   $('status-filter').querySelectorAll('.status-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       $('status-filter').querySelectorAll('.status-chip').forEach(c => c.classList.remove('active'));
@@ -588,13 +694,11 @@ function bindEvents() {
     });
   });
 
-  // Refresh
   $('refresh-btn').addEventListener('click', async () => {
     await loadAgenda(state.currentDate);
     if (state.activeView === 'overview') await loadMonthAgenda();
   });
 
-  // Subscription buttons
   $('btn-renew-sub')?.addEventListener('click', () => {
     alert('Entre em contato via WhatsApp para renovar sua assinatura:\n📱 (62) 9 9999-0000');
   });
@@ -602,7 +706,6 @@ function bindEvents() {
     alert('Histórico de pagamentos em breve disponível neste painel.');
   });
 
-  // Mobile menu
   $('mobile-menu-btn').addEventListener('click', openSidebar);
   $('sidebar-overlay').addEventListener('click', closeSidebar);
 }
