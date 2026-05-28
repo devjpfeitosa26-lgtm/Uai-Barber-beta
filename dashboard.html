@@ -1,873 +1,418 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>UaiBarber | Dashboard</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-         :root {
-            --bg: #070b10;
-            --sidebar: #0c1118;
-            --panel: #0f1520;
-            --panel-2: #131d2c;
-            --card: #141d2e;
-            --border: rgba(255, 255, 255, 0.07);
-            --border-2: rgba(255, 255, 255, 0.12);
-            --gold: #c9933a;
-            --gold-light: #e8b56a;
-            --gold-dim: rgba(201, 147, 58, 0.15);
-            --gold-glow: rgba(201, 147, 58, 0.2);
-            --text: #eef0f4;
-            --muted: #6b7a94;
-            --success: #22c55e;
-            --danger: #ef4444;
-            --radius: 8px;
-        }
-        
-        *,
-        *::before,
-        *::after {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-        
-        body {
-            font-family: 'DM Sans', sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            display: flex;
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-        /* Sidebar */
-        
-        .sidebar {
-            width: 260px;
-            background: var(--sidebar);
-            border-right: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            z-index: 99;
-            transition: transform 0.3s ease;
-        }
-        
-        .sidebar-brand {
-            padding: 24px;
-            font-family: 'Syne', sans-serif;
-            font-weight: 800;
-            font-size: 22px;
-            color: var(--gold-light);
-            border-bottom: 1px solid var(--border);
-        }
-        
-        .sidebar-profile {
-            padding: 16px 24px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            border-bottom: 1px solid var(--border);
-        }
-        
-        .avatar {
-            width: 36px;
-            height: 36px;
-            background: var(--gold-dim);
-            border: 1px solid var(--gold);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            color: var(--gold-light);
-        }
-        
-        .profile-info {
-            overflow: hidden;
-        }
-        
-        .profile-name {
-            font-weight: 500;
-            font-size: 14px;
-            white-space: nowrap;
-            text-overflow: ellipsis;
-            overflow: hidden;
-        }
-        
-        .profile-role {
-            font-size: 11px;
-            color: var(--muted);
-        }
-        
-        .nav {
-            padding: 24px 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            flex: 1;
-        }
-        
-        .nav-item {
-            background: none;
-            border: none;
-            text-align: left;
-            padding: 12px 16px;
-            border-radius: var(--radius);
-            color: var(--muted);
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            transition: all 0.2s;
-        }
-        
-        .nav-item:hover {
-            background: rgba(255, 255, 255, 0.02);
-            color: var(--text);
-        }
-        
-        .nav-item.active {
-            background: var(--gold-dim);
-            color: var(--gold-light);
-            font-weight: 600;
-        }
-        
-        .sidebar-footer {
-            padding: 16px;
-            border-top: 1px solid var(--border);
-        }
-        
-        .btn-logout {
-            width: 100%;
-            background: none;
-            border: 1px solid var(--border);
-            padding: 10px;
-            border-radius: var(--radius);
-            color: var(--danger);
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-        
-        .btn-logout:hover {
-            background: rgba(239, 68, 68, 0.05);
-        }
-        /* Main Content */
-        
-        .main {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            min-width: 0;
-        }
-        
-        .topbar {
-            background: var(--panel);
-            border-bottom: 1px solid var(--border);
-            padding: 16px 32px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-        }
-        
-        .topbar-left h2 {
-            font-family: 'Syne', sans-serif;
-            font-size: 20px;
-            font-weight: 700;
-        }
-        
-        .topbar-left p {
-            font-size: 12px;
-            color: var(--muted);
-            margin-top: 2px;
-        }
-        
-        .topbar-actions {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        /* Buttons */
-        
-        .btn-primary {
-            background: var(--gold);
-            border: none;
-            padding: 10px 18px;
-            border-radius: var(--radius);
-            color: #000;
-            font-weight: 600;
-            font-size: 13px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: background 0.2s;
-        }
-        
-        .btn-primary:hover {
-            background: var(--gold-light);
-        }
-        
-        .btn-secondary {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid var(--border-2);
-            padding: 10px 18px;
-            border-radius: var(--radius);
-            color: var(--text);
-            font-weight: 500;
-            font-size: 13px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: background 0.2s;
-        }
-        
-        .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.08);
-        }
-        
-        .mobile-menu-btn {
-            display: none;
-            background: none;
-            border: none;
-            color: var(--text);
-            font-size: 24px;
-            cursor: pointer;
-        }
-        /* Content Views */
-        
-        .content {
-            padding: 32px;
-            flex: 1;
-            overflow-y: auto;
-            position: relative;
-        }
-        
-        .view {
-            display: none;
-        }
-        
-        .view.active {
-            display: block;
-        }
-        /* Agenda View Specifics */
-        
-        .agenda-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 24px;
-            flex-wrap: wrap;
-            gap: 16px;
-        }
-        
-        .date-picker-ctrl {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 4px;
-        }
-        
-        .btn-icon {
-            background: none;
-            border: none;
-            color: var(--text);
-            width: 32px;
-            height: 32px;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-        }
-        
-        .btn-icon:hover {
-            background: rgba(255, 255, 255, 0.05);
-        }
-        
-        .current-date-lbl {
-            font-size: 14px;
-            font-weight: 600;
-            padding: 0 12px;
-            min-width: 140px;
-            text-align: center;
-        }
-        
-        .filters {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 4px;
-        }
-        
-        .status-chip {
-            background: none;
-            border: none;
-            color: var(--muted);
-            padding: 6px 12px;
-            font-size: 12px;
-            font-weight: 500;
-            border-radius: 6px;
-            cursor: pointer;
-        }
-        
-        .status-chip.active {
-            background: var(--panel-2);
-            color: var(--text);
-        }
-        
-        .timeline {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            margin-top: 16px;
-        }
-        /* Appt Cards */
-        
-        .appt-card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 16px;
-            display: grid;
-            grid-template-columns: 100px 1fr auto;
-            align-items: center;
-            gap: 16px;
-            transition: border 0.2s, transform 0.2s;
-            cursor: pointer;
-        }
-        
-        .appt-card:hover {
-            border-color: var(--border-2);
-            transform: translateY(-1px);
-        }
-        
-        .appt-time {
-            font-family: 'Syne', sans-serif;
-            font-size: 16px;
-            font-weight: 700;
-            color: var(--gold-light);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        
-        .appt-info-main {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-        
-        .appt-client-name {
-            font-weight: 600;
-            font-size: 15px;
-        }
-        
-        .appt-service-tag {
-            font-size: 12px;
-            color: var(--muted);
-        }
-        
-        .appt-actions-cell {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        /* Pills */
-        
-        .pill {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .pill-pendente {
-            background: rgba(201, 147, 58, 0.1);
-            color: var(--gold-light);
-            border: 1px solid rgba(201, 147, 58, 0.2);
-        }
-        
-        .pill-confirmado {
-            background: rgba(59, 130, 246, 0.1);
-            color: #60a5fa;
-            border: 1px solid rgba(59, 130, 246, 0.2);
-        }
-        
-        .pill-concluido {
-            background: rgba(34, 197, 94, 0.1);
-            color: #4ade80;
-            border: 1px solid rgba(34, 197, 94, 0.2);
-        }
-        
-        .pill-cancelado {
-            background: rgba(239, 68, 68, 0.1);
-            color: #f87171;
-            border: 1px solid rgba(239, 68, 68, 0.2);
-        }
-        
-        .pill-bloqueio {
-            background: rgba(239, 68, 68, 0.15);
-            color: #f87171;
-            border: 1px solid #ef4444;
-        }
-        /* Grid de Métricas do Relatório */
-        
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 16px;
-            margin-bottom: 24px;
-        }
-        
-        .metric-card {
-            background: var(--panel);
-            border: 1px solid var(--border);
-            padding: 18px;
-            border-radius: var(--radius);
-        }
-        
-        .metric-label {
-            font-size: 12px;
-            color: var(--muted);
-            text-transform: uppercase;
-            font-weight: 600;
-        }
-        
-        .metric-value {
-            font-family: 'Syne', sans-serif;
-            font-size: 24px;
-            font-weight: 700;
-            margin-top: 6px;
-        }
-        /* Modais CSS */
-        
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(5, 7, 11, 0.85);
-            backdrop-filter: blur(4px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 999;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s ease;
-        }
-        
-        .modal-overlay.open {
-            opacity: 1;
-            pointer-events: auto;
-        }
-        
-        .modal-box {
-            background: var(--panel);
-            border: 1px solid var(--border-2);
-            width: min(100% - 32px, 500px);
-            border-radius: 12px;
-            padding: 28px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
-        }
-        
-        .modal-title {
-            font-family: 'Syne', sans-serif;
-            font-size: 18px;
-            font-weight: 700;
-        }
-        
-        .modal-sub {
-            font-size: 12px;
-            color: var(--muted);
-            margin-top: 4px;
-            margin-bottom: 20px;
-        }
-        
-        .modal-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-        }
-        
-        .field {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-        
-        .field.full {
-            grid-column: span 2;
-        }
-        
-        .field label {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--muted);
-            text-transform: uppercase;
-        }
-        
-        .field input,
-        .field select {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            padding: 10px 14px;
-            border-radius: var(--radius);
-            color: var(--text);
-            font-family: inherit;
-            font-size: 14px;
-        }
-        
-        .field input:focus,
-        .field select:focus {
-            border-color: var(--gold);
-            outline: none;
-        }
-        
-        .modal-actions {
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            gap: 12px;
-            margin-top: 24px;
-        }
-        
-        .feedback {
-            font-size: 13px;
-            margin-top: 12px;
-            display: none;
-        }
-        
-        .feedback.error {
-            display: block;
-            color: var(--danger);
-        }
-        
-        .feedback.success {
-            display: block;
-            color: var(--success);
-        }
-        
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: var(--muted);
-            font-size: 14px;
-        }
-        
-        @media(max-width: 768px) {
-            body {
-                flex-direction: column;
-            }
-            .sidebar {
-                position: fixed;
-                top: 0;
-                bottom: 0;
-                left: 0;
-                transform: translateX(-100%);
-            }
-            .sidebar.open {
-                transform: translateX(0);
-            }
-            .topbar {
-                padding: 16px;
-            }
-            .mobile-menu-btn {
-                display: block;
-            }
-            .appt-card {
-                grid-template-columns: 1fr;
-                gap: 12px;
-            }
-            .appt-actions-cell {
-                justify-content: flex-end;
-            }
-        }
-    </style>
-</head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UaiBarber | Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #070b10;
+      --sidebar: #0c1118;
+      --panel: #0f1520;
+      --panel-2: #131d2c;
+      --card: #141d2e;
+      --border: rgba(255,255,255,0.07);
+      --border-2: rgba(255,255,255,0.12);
+      --gold: #c9933a;
+      --gold-light: #e8b56a;
+      --gold-dim: rgba(201,147,58,0.15);
+      --gold-glow: rgba(201,147,58,0.2);
+      --text: #eef0f4;
+      --muted: #6b7a94;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --radius: 8px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; overflow-x: hidden; }
+    
+    /* Sidebar */
+    .sidebar { width: 260px; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 99; transition: transform 0.3s ease; }
+    .sidebar-brand { padding: 24px; font-family: 'Syne', sans-serif; font-weight: 800; font-size: 22px; color: var(--gold-light); border-bottom: 1px solid var(--border); }
+    .sidebar-profile { padding: 16px 24px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); }
+    .avatar { width: 36px; height: 36px; background: var(--gold-dim); border: 1px solid var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--gold-light); }
+    .profile-info { overflow: hidden; }
+    .profile-name { font-weight: 500; font-size: 14px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+    .profile-role { font-size: 11px; color: var(--muted); }
+    .nav { padding: 24px 12px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+    .nav-item { background: none; border: none; text-align: left; padding: 12px 16px; border-radius: var(--radius); color: var(--muted); font-size: 14px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: all 0.2s; }
+    .nav-item:hover { background: rgba(255,255,255,0.02); color: var(--text); }
+    .nav-item.active { background: var(--gold-dim); color: var(--gold-light); font-weight: 600; }
+    .sidebar-footer { padding: 16px; border-top: 1px solid var(--border); }
+    .btn-logout { width: 100%; background: none; border: 1px solid var(--border); padding: 10px; border-radius: var(--radius); color: var(--danger); font-size: 13px; font-weight: 500; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .btn-logout:hover { background: rgba(239,68,68,0.05); }
 
+    /* Main Content */
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .topbar { background: var(--panel); border-bottom: 1px solid var(--border); padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .topbar-left h2 { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; }
+    .topbar-left p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .topbar-actions { display: flex; align-items: center; gap: 12px; }
+    
+    /* Buttons */
+    .btn-primary { background: var(--gold); border: none; padding: 10px 18px; border-radius: var(--radius); color: #000; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s; }
+    .btn-primary:hover { background: var(--gold-light); }
+    .btn-secondary { background: rgba(255,255,255,0.04); border: 1px solid var(--border-2); padding: 10px 18px; border-radius: var(--radius); color: var(--text); font-weight: 500; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s; }
+    .btn-secondary:hover { background: rgba(255,255,255,0.08); }
+    .mobile-menu-btn { display: none; background: none; border: none; color: var(--text); font-size: 24px; cursor: pointer; }
+
+    /* Content Views */
+    .content { padding: 32px; flex: 1; overflow-y: auto; position: relative; }
+    .view { display: none; }
+    .view.active { display: block; }
+
+    /* Agenda Controls & Cards */
+    .agenda-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+    .date-picker-ctrl { display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px; }
+    .btn-icon { background: none; border: none; color: var(--text); width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .btn-icon:hover { background: rgba(255,255,255,0.05); }
+    .current-date-lbl { font-size: 14px; font-weight: 600; padding: 0 12px; min-width: 140px; text-align: center; }
+    .filters { display: flex; align-items: center; gap: 6px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px; }
+    .status-chip { background: none; border: none; color: var(--muted); padding: 6px 12px; font-size: 12px; font-weight: 500; border-radius: 6px; cursor: pointer; }
+    .status-chip.active { background: var(--panel-2); color: var(--text); }
+    .timeline { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+    
+    .appt-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: grid; grid-template-columns: 100px 1fr auto; align-items: center; gap: 16px; transition: border 0.2s, transform 0.2s; cursor: pointer; }
+    .appt-card:hover { border-color: var(--border-2); transform: translateY(-1px); }
+    .appt-time { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; color: var(--gold-light); display: flex; align-items: center; gap: 6px; }
+    .appt-info-main { display: flex; flex-direction: column; gap: 4px; }
+    .appt-client-name { font-weight: 600; font-size: 15px; }
+    .appt-service-tag { font-size: 12px; color: var(--muted); }
+    .appt-actions-cell { display: flex; align-items: center; gap: 8px; }
+    
+    /* Pills */
+    .pill { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .pill-pendente { background: rgba(201,147,58,0.1); color: var(--gold-light); border: 1px solid rgba(201,147,58,0.2); }
+    .pill-confirmado { background: rgba(59,130,246,0.1); color: #60a5fa; border: 1px solid rgba(59,130,246,0.2); }
+    .pill-concluido { background: rgba(34,197,94,0.1); color: #4ade80; border: 1px solid rgba(34,197,94,0.2); }
+    .pill-cancelado { background: rgba(239,68,68,0.1); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+    .pill-bloqueio { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid #ef4444; }
+
+    /* Relatórios Grid */
+    .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .metric-card { background: var(--panel); border: 1px solid var(--border); padding: 18px; border-radius: var(--radius); }
+    .metric-label { font-size: 12px; color: var(--muted); text-transform: uppercase; font-weight: 600; }
+    .metric-value { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 700; margin-top: 6px; }
+
+    /* Modais Estrutura */
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(5,7,11,0.92); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; z-index: 999; opacity: 0; pointer-events: none; transition: opacity 0.2s ease; }
+    .modal-overlay.open { opacity: 1; pointer-events: auto; }
+    .modal-box { background: var(--panel); border: 1px solid var(--border-2); width: min(100% - 32px, 500px); border-radius: 12px; padding: 28px; box-shadow: 0 20px 40px rgba(0,0,0,0.6); }
+    .modal-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; }
+    .modal-sub { font-size: 12px; color: var(--muted); margin-top: 4px; margin-bottom: 20px; line-height: 1.5; }
+    .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field.full { grid-column: span 2; }
+    .field label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; }
+    .field input, .field select { background: var(--bg); border: 1px solid var(--border); padding: 10px 14px; border-radius: var(--radius); color: var(--text); font-family: inherit; font-size: 14px; }
+    .field input:focus, .field select:focus { border-color: var(--gold); outline: none; }
+    .modal-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+    .feedback { font-size: 13px; margin-top: 12px; display: none; }
+    .feedback.error { display: block; color: var(--danger); }
+    .feedback.success { display: block; color: var(--success); }
+    .empty-state { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 14px; }
+
+    /* Floating Help Button */
+    .btn-help-floating { position: fixed; bottom: 24px; right: 24px; width: 48px; height: 48px; border-radius: 50%; background: var(--gold); color: #000; border: none; font-size: 22px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 20px rgba(201,147,58,0.4); z-index: 998; display: flex; align-items: center; justify-content: center; transition: transform 0.2s; }
+    .btn-help-floating:hover { transform: scale(1.08); background: var(--gold-light); }
+
+    @media(max-width: 768px) {
+      body { flex-direction: column; }
+      .sidebar { position: fixed; top: 0; bottom: 0; left: 0; transform: translateX(-100%); }
+      .sidebar.open { transform: translateX(0); }
+      .topbar { padding: 16px; }
+      .mobile-menu-btn { display: block; }
+      .appt-card { grid-template-columns: 1fr; gap: 12px; }
+      .appt-actions-cell { justify-content: flex-end; }
+    }
+  </style>
+</head>
 <body>
 
-    <div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:98;display:none;" id="sidebar-overlay"></div>
+  <div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:98;display:none;" id="sidebar-overlay"></div>
 
-    <div class="sidebar" id="sidebar">
-        <div class="sidebar-brand">UaiBarber</div>
-        <div class="sidebar-profile">
-            <div class="avatar" id="prof-avatar">-</div>
-            <div class="profile-info">
-                <div class="profile-name" id="prof-name">Carregando...</div>
-                <div class="profile-role">Barbeiro Profissional</div>
-            </div>
-        </div>
-        <div class="nav">
-            <button class="nav-item active" data-target="view-agenda">
+  <!-- MENU LATERAL -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-brand">UaiBarber</div>
+    <div class="sidebar-profile">
+      <div class="avatar" id="prof-avatar">-</div>
+      <div class="profile-info">
+        <div class="profile-name" id="prof-name">Carregando...</div>
+        <div class="profile-role">Barbeiro Profissional</div>
+      </div>
+    </div>
+    <div class="nav">
+      <button class="nav-item active" data-target="view-agenda">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         Agenda do Dia
       </button>
-            <button class="nav-item" data-target="view-relatorios">
+      <button class="nav-item" data-target="view-relatorios">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
         Relatórios Visuais
       </button>
-            <button class="nav-item" data-target="view-servicos">
+      <button class="nav-item" data-target="view-servicos">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
         Meus Serviços
       </button>
-            <button class="nav-item" data-target="view-assinatura">
+      <button class="nav-item" data-target="view-assinatura">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
         Minha Assinatura
       </button>
-        </div>
-        <div class="sidebar-footer">
-            <button class="btn-logout" id="logout-btn">
-        Aba de Sair
-      </button>
-        </div>
+    </div>
+    <div class="sidebar-footer">
+      <button class="btn-logout" id="logout-btn">Aba de Sair</button>
+    </div>
+  </div>
+
+  <!-- CONTEÚDO PRINCIPAL -->
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <h2 id="topbar-title">Agenda</h2>
+        <p id="topbar-subtitle">Gerencie os horários e atendimentos de hoje</p>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn-secondary" id="btn-open-bloqueio">Bloquear Horário</button>
+        <button class="btn-primary" id="btn-new-appt">Novo Agendamento</button>
+        <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
+      </div>
     </div>
 
-    <div class="main">
-        <div class="topbar">
-            <div class="topbar-left">
-                <h2 id="topbar-title">Agenda</h2>
-                <p id="topbar-subtitle">Gerencie os horários e atendimentos de hoje</p>
-            </div>
-            <div class="topbar-actions">
-                <button class="btn-secondary" id="btn-open-bloqueio">
-          Bloquear Horário
-        </button>
-                <button class="btn-primary" id="btn-new-appt">
-          Novo Agendamento
-        </button>
-                <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
-            </div>
+    <div class="content">
+      <!-- ABA 1: AGENDA -->
+      <div id="view-agenda" class="view active">
+        <div class="agenda-header">
+          <div class="date-picker-ctrl">
+            <button class="btn-icon" id="btn-prev-day">◀</button>
+            <div class="current-date-lbl" id="current-date-lbl">--/--/----</div>
+            <button class="btn-icon" id="btn-next-day">▶</button>
+          </div>
+          <div class="filters" id="status-filter">
+            <button class="status-chip active" data-filter="todos">Todos</button>
+            <button class="status-chip" data-filter="confirmado">Confirmados</button>
+            <button class="status-chip" data-filter="concluido">Concluídos</button>
+            <button class="status-chip" data-filter="cancelado">Cancelados</button>
+          </div>
+          <button class="btn-secondary" id="refresh-btn" style="padding: 8px 12px;">Atualizar</button>
         </div>
+        <div class="timeline" id="timeline-container"></div>
+      </div>
 
-        <div class="content">
-
-            <div id="view-agenda" class="view active">
-                <div class="agenda-header">
-                    <div class="date-picker-ctrl">
-                        <button class="btn-icon" id="btn-prev-day">◀</button>
-                        <div class="current-date-lbl" id="current-date-lbl">--/--/----</div>
-                        <button class="btn-icon" id="btn-next-day">▶</button>
-                    </div>
-                    <div class="filters" id="status-filter">
-                        <button class="status-chip active" data-filter="todos">Todos</button>
-                        <button class="status-chip" data-filter="confirmado">Confirmados</button>
-                        <button class="status-chip" data-filter="concluido">Concluídos</button>
-                        <button class="status-chip" data-filter="cancelado">Cancelados</button>
-                    </div>
-                    <button class="btn-secondary" id="refresh-btn" style="padding: 8px 12px;">Atualizar</button>
-                </div>
-                <div class="timeline" id="timeline-container"></div>
-            </div>
-
-            <div id="view-relatorios" class="view">
-                <div class="metrics-grid">
-                    <div class="metric-card">
-                        <div class="metric-label">Ticket Médio Geral</div>
-                        <div class="metric-value" id="rep-ticket-medio">R$ 0,00</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-label">Serviço Mais Vendido</div>
-                        <div class="metric-value" id="rep-servico-topo" style="font-size: 20px; padding-top: 8px;">-</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-label">Total Faturado Real</div>
-                        <div class="metric-value" id="rep-faturamento-total" style="color: var(--success);">R$ 0,00</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-label">Agendamentos Concluídos</div>
-                        <div class="metric-value" id="rep-total-concluidos">0</div>
-                    </div>
-                </div>
-
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 20px;">
-                    <div class="metric-card" style="min-height: 350px;">
-                        <h4 style="margin-bottom: 15px; font-family: 'Syne';">Histórico de Faturamento por Dia</h4>
-                        <div style="position: relative; height: 260px; width: 100%;">
-                            <canvas id="chartFaturamento"></canvas>
-                        </div>
-                    </div>
-                    <div class="metric-card" style="min-height: 350px;">
-                        <h4 style="margin-bottom: 15px; font-family: 'Syne';">Distribuição de Serviços Vendidos</h4>
-                        <div style="position: relative; height: 260px; width: 100%;">
-                            <canvas id="chartServicos"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="view-servicos" class="view">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                    <h3>Meus Serviços Cadastrados</h3>
-                    <button class="btn-primary" id="btn-add-service">Adicionar Serviço</button>
-                </div>
-                <div class="timeline" id="services-container"></div>
-            </div>
-
-            <div id="view-assinatura" class="view">
-                <div class="modal-box" style="width:100%; max-width:600px; margin:0 auto;">
-                    <h3 style="font-family:'Syne';">Status do seu Plano</h3>
-                    <p style="color:var(--success); font-weight:600; margin-top:10px;">✔ PLANO PROFISSIONAL ATIVO</p>
-                    <p style="font-size:13px; color:var(--muted); margin-top:6px;">Próxima renovação automática: Em 30 dias.</p>
-                    <div style="margin-top:20px; display:flex; gap:12px;">
-                        <button class="btn-primary" id="btn-renew-sub">Renovar Via WhatsApp</button>
-                        <button class="btn-secondary" id="btn-history-sub">Histórico de Pagamentos</button>
-                    </div>
-                </div>
-            </div>
-
+      <!-- ABA 2: RELATÓRIOS -->
+      <div id="view-relatorios" class="view">
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-label">Ticket Médio Geral</div>
+            <div class="metric-value" id="rep-ticket-medio">R$ 0,00</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Serviço Mais Vendido</div>
+            <div class="metric-value" id="rep-servico-topo" style="font-size: 20px; padding-top: 8px;">-</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Total Faturado Real</div>
+            <div class="metric-value" id="rep-faturamento-total" style="color: var(--success);">R$ 0,00</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Agendamentos Concluídos</div>
+            <div class="metric-value" id="rep-total-concluidos">0</div>
+          </div>
         </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 20px;">
+          <div class="metric-card" style="min-height: 350px;">
+            <h4 style="margin-bottom: 15px; font-family: 'Syne';">Histórico de Faturamento por Dia</h4>
+            <div style="position: relative; height: 260px; width: 100%;"><canvas id="chartFaturamento"></canvas></div>
+          </div>
+          <div class="metric-card" style="min-height: 350px;">
+            <h4 style="margin-bottom: 15px; font-family: 'Syne';">Distribuição de Serviços Vendidos</h4>
+            <div style="position: relative; height: 260px; width: 100%;"><canvas id="chartServicos"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA 3: SERVIÇOS -->
+      <div id="view-servicos" class="view">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+          <h3>Meus Serviços Cadastrados</h3>
+          <button class="btn-primary" id="btn-add-service">Adicionar Serviço</button>
+        </div>
+        <div class="timeline" id="services-container"></div>
+      </div>
+
+      <!-- ABA 4: ASSINATURA -->
+      <div id="view-assinatura" class="view">
+        <div class="modal-box" style="width:100%; max-width:600px; margin:0 auto;">
+          <h3 style="font-family:'Syne';">Status do seu Plano</h3>
+          <p style="color:var(--success); font-weight:600; margin-top:10px;">✔ PLANO PROFISSIONAL ATIVO</p>
+          <p style="font-size:13px; color:var(--muted); margin-top:6px;">Próxima renovação automática: Em 30 dias.</p>
+          <div style="margin-top:20px; display:flex; gap:12px;">
+            <button class="btn-primary" id="btn-renew-sub">Renovar Via WhatsApp</button>
+            <button class="btn-secondary" id="btn-history-sub">Histórico de Pagamentos</button>
+          </div>
+        </div>
+      </div>
     </div>
+  </div>
 
-    <div class="modal-overlay" id="modal-historico">
-        <div class="modal-box" style="width: min(100%, 650px);">
-            <h3 class="modal-title" id="hist-nome-cliente">Nome do Cliente</h3>
-            <p class="modal-sub" id="hist-whatsapp-cliente">WhatsApp</p>
-
-            <div class="metrics-grid" style="grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;">
-                <div class="metric-card" style="padding: 12px;">
-                    <div class="metric-label" style="font-size: 10px;">Frequência</div>
-                    <div class="metric-value" id="hist-total-cortes" style="font-size: 18px;">0</div>
-                </div>
-                <div class="metric-card" style="padding: 12px;">
-                    <div class="metric-label" style="font-size: 10px;">Gasto Total</div>
-                    <div class="metric-value" id="hist-total-gasto" style="font-size: 18px; color: var(--gold-light);">R$ 0,00</div>
-                </div>
-                <div class="metric-card" style="padding: 12px;">
-                    <div class="metric-label" style="font-size: 10px;">Ticket Médio</div>
-                    <div class="metric-value" id="hist-ticket-medio" style="font-size: 18px;">R$ 0,00</div>
-                </div>
-            </div>
-
-            <h4 style="font-family:'Syne'; margin-bottom:10px;">Histórico de Agendamentos anteriores</h4>
-            <div id="hist-lista-cortes" style="max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;"></div>
-
-            <div class="modal-actions">
-                <button class="btn-secondary" id="btn-fechar-historico">Fechar Ficha</button>
-            </div>
+  <!-- MODAL: ONBOARDING COMPLETO (PASSO A PASSO GUIADO) -->
+  <div class="modal-overlay" id="modal-onboarding">
+    <div class="modal-box" style="width: min(100% - 32px, 540px);">
+      
+      <!-- Passo 1: Nome do Barbeiro -->
+      <div id="onb-step-1" class="onb-slide">
+        <h3 class="modal-title">👋 Seja bem-vindo ao UaiBarber!</h3>
+        <p class="modal-sub">Vamos configurar sua barbearia para ativar seu assistente comercial com inteligência artificial.</p>
+        <div class="field full" style="margin-top: 10px;">
+          <label>Nome Comercial ou da Barbearia</label>
+          <input type="text" id="onb-input-nome" placeholder="Ex: Barbearia Estilo Real" />
         </div>
-    </div>
-
-    <div class="modal-overlay" id="modal-bloqueio">
-        <div class="modal-box">
-            <h3 class="modal-title">Bloquear Agenda / Horário</h3>
-            <p class="modal-sub">Defina slots em que o bot de inteligência artificial não realizará marcações automaticamente.</p>
-
-            <div class="modal-grid">
-                <div class="field full">
-                    <label>Motivo do Bloqueio</label>
-                    <input type="text" id="bloqueio-titulo" placeholder="Ex: Horário de Almoço, Férias, Folga Semanal..." />
-                </div>
-                <div class="field">
-                    <label>Data/Hora Início</label>
-                    <input type="datetime-local" id="bloqueio-inicio" />
-                </div>
-                <div class="field">
-                    <label>Data/Hora Fim</label>
-                    <input type="datetime-local" id="bloqueio-fim" />
-                </div>
-            </div>
-            <div class="feedback" id="bloqueio-feedback"></div>
-            <div class="modal-actions">
-                <button class="btn-secondary" id="btn-cancelar-bloqueio">Cancelar</button>
-                <button class="btn-primary" id="btn-salvar-bloqueio">Confirmar Bloqueio</button>
-            </div>
+        <div class="feedback" id="onb-feedback-1"></div>
+        <div class="modal-actions">
+          <button class="btn-primary" id="onb-btn-proximo-1">Avançar: Configurar Catálogo →</button>
         </div>
-    </div>
+      </div>
 
-    <div class="modal-overlay" id="modal-appt">
-        <div class="modal-box">
-            <h3 class="modal-title">Cadastrar Novo Agendamento</h3>
-            <p class="modal-sub">Preencha os dados do cliente e selecione o horário pretendido.</p>
-
-            <div class="modal-grid">
-                <div class="field">
-                    <label>Nome do Cliente</label>
-                    <input type="text" id="appt-nome" placeholder="Ex: João Silva" />
-                </div>
-                <div class="field">
-                    <label>WhatsApp do Cliente</label>
-                    <input type="text" id="appt-whatsapp" placeholder="Ex: 62999999999" />
-                </div>
-                <div class="field full">
-                    <label>Selecione o Serviço</label>
-                    <select id="appt-servico"></select>
-                </div>
-                <div class="field full">
-                    <label>Data e Horário</label>
-                    <input type="datetime-local" id="appt-horario" />
-                </div>
-            </div>
-            <div class="feedback" id="appt-feedback"></div>
-            <div class="modal-actions">
-                <button class="btn-secondary" id="btn-cancelar-appt">Voltar</button>
-                <button class="btn-primary" id="btn-salvar-appt">Criar Agendamento</button>
-            </div>
+      <!-- Passo 2: Criar Primeiro Serviço -->
+      <div id="onb-step-2" class="onb-slide" style="display: none;">
+        <h3 class="modal-title">✂ Defina o seu Primeiro Serviço</h3>
+        <p class="modal-sub">Seu robô de agendamento precisa de pelo menos um serviço ativo para vender aos clientes pelo WhatsApp.</p>
+        <div class="modal-grid" style="margin-top: 10px;">
+          <div class="field full">
+            <label>Nome do Serviço</label>
+            <input type="text" id="onb-input-servnome" placeholder="Ex: Corte Degradê Navalhado" />
+          </div>
+          <div class="field">
+            <label>Preço Cobrado (R$)</label>
+            <input type="number" id="onb-input-servpreco" step="0.01" placeholder="45.00" />
+          </div>
+          <div class="field">
+            <label>Tempo Estimado (Minutos)</label>
+            <input type="number" id="onb-input-servduracao" placeholder="40" />
+          </div>
         </div>
-    </div>
-
-    <div class="modal-overlay" id="modal-service">
-        <div class="modal-box">
-            <h3 class="modal-title" id="service-modal-title">Adicionar Serviço</h3>
-            <p class="modal-sub">Insira a descrição, o preço cobrado e o tempo médio de execução.</p>
-
-            <div class="modal-grid">
-                <div class="field full">
-                    <label>Nome do Serviço</label>
-                    <input type="text" id="service-nome" placeholder="Ex: Corte Degradê + Barba" />
-                </div>
-                <div class="field">
-                    <label>Preço (R$)</label>
-                    <input type="number" id="service-preco" step="0.01" placeholder="50.00" />
-                </div>
-                <div class="field">
-                    <label>Duração (Minutos)</label>
-                    <input type="number" id="service-duracao" placeholder="45" />
-                </div>
-            </div>
-            <div class="feedback" id="service-feedback"></div>
-            <div class="modal-actions">
-                <button class="btn-secondary" id="btn-cancelar-service">Cancelar</button>
-                <button class="btn-primary" id="btn-salvar-service">Salvar Alterações</button>
-            </div>
+        <div class="feedback" id="onb-feedback-2"></div>
+        <div class="modal-actions">
+          <button class="btn-primary" id="onb-btn-proximo-2">Salvar e Obter Link do Bot →</button>
         </div>
-    </div>
+      </div>
 
-    <div class="modal-overlay" id="modal-alert">
-        <div class="modal-box" style="text-align:center;">
-            <h3 class="modal-title" style="color:var(--gold-light);">🔔 Novo Agendamento Recebido!</h3>
-            <p class="modal-sub" style="margin-bottom:15px;">Um cliente realizou uma marcação através do assistente virtual.</p>
-            <div id="alert-content" style="background:var(--panel-2); padding:16px; border-radius:var(--radius); text-align:left; font-size:14px; border:1px solid var(--border-2); margin-bottom:20px;"></div>
-            <button class="btn-primary" id="btn-close-alert" style="margin: 0 auto;">Entendido</button>
+      <!-- Passo 3: Link do Robô -->
+      <div id="onb-step-3" class="onb-slide" style="display: none;">
+        <h3 class="modal-title">🚀 Tudo Pronto! Seu Robô Está Conectado</h3>
+        <p class="modal-sub">Divulgue o link exclusivo abaixo no botão do seu Instagram ou bio para receber agendamentos automáticos 24h por dia.</p>
+        <div class="field full" style="margin-top: 10px;">
+          <label>Link de Atendimento do Bot</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="onb-input-linkbot" readonly style="flex:1; background: var(--bg); color: var(--gold-light); font-weight: 600; border-color: var(--border-2);" />
+            <button class="btn-primary" id="onb-btn-copiar" style="padding:0 16px;">Copiar</button>
+          </div>
         </div>
-    </div>
+        <div class="feedback" id="onb-feedback-3"></div>
+        <div class="modal-actions" style="margin-top: 30px;">
+          <button class="btn-primary" id="onb-btn-finalizar" style="background: var(--success); color: #000; width: 100%; justify-content: center;">Concluir Configuração e Entrar</button>
+        </div>
+      </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js"></script>
+    </div>
+  </div>
+
+  <!-- MODAL: HISTÓRICO COMPLETO -->
+  <div class="modal-overlay" id="modal-historico">
+    <div class="modal-box" style="width: min(100%, 650px);">
+      <h3 class="modal-title" id="hist-nome-cliente">Nome do Cliente</h3>
+      <p class="modal-sub" id="hist-whatsapp-cliente">WhatsApp</p>
+      <div class="metrics-grid" style="grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;">
+        <div class="metric-card" style="padding: 12px;">
+          <div class="metric-label" style="font-size: 10px;">Frequência</div>
+          <div class="metric-value" id="hist-total-cortes" style="font-size: 18px;">0</div>
+        </div>
+        <div class="metric-card" style="padding: 12px;">
+          <div class="metric-label" style="font-size: 10px;">Gasto Total</div>
+          <div class="metric-value" id="hist-total-gasto" style="font-size: 18px; color: var(--gold-light);">R$ 0,00</div>
+        </div>
+        <div class="metric-card" style="padding: 12px;">
+          <div class="metric-label" style="font-size: 10px;">Ticket Médio</div>
+          <div class="metric-value" id="hist-ticket-medio" style="font-size: 18px;">R$ 0,00</div>
+        </div>
+      </div>
+      <h4 style="font-family:'Syne'; margin-bottom:10px;">Histórico de Agendamentos Anteriores</h4>
+      <div id="hist-lista-cortes" style="max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;"></div>
+      <div class="modal-actions"><button class="btn-secondary" id="btn-fechar-historico">Fechar Ficha</button></div>
+    </div>
+  </div>
+
+  <!-- MODAL: BLOQUEAR HORÁRIO -->
+  <div class="modal-overlay" id="modal-bloqueio">
+    <div class="modal-box">
+      <h3 class="modal-title">Bloquear Agenda / Horário</h3>
+      <p class="modal-sub">Bloqueie faixas de horários específicos para impedir marcações da Inteligência Artificial.</p>
+      <div class="modal-grid">
+        <div class="field full"><label>Motivo do Bloqueio</label><input type="text" id="bloqueio-titulo" placeholder="Ex: Horário de Almoço, Folga, Férias" /></div>
+        <div class="field"><label>Data/Hora Início</label><input type="datetime-local" id="bloqueio-inicio" /></div>
+        <div class="field"><label>Data/Hora Fim</label><input type="datetime-local" id="bloqueio-fim" /></div>
+      </div>
+      <div class="feedback" id="bloqueio-feedback"></div>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="btn-cancelar-bloqueio">Cancelar</button>
+        <button class="btn-primary" id="btn-salvar-bloqueio">Confirmar Bloqueio</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: NOVO AGENDAMENTO MANUAL -->
+  <div class="modal-overlay" id="modal-appt">
+    <div class="modal-box">
+      <h3 class="modal-title">Cadastrar Novo Agendamento</h3>
+      <p class="modal-sub">Selecione o serviço e preencha os dados básicos do cliente.</p>
+      <div class="modal-grid">
+        <div class="field"><label>Nome do Cliente</label><input type="text" id="appt-nome" placeholder="Ex: Carlos Alberto" /></div>
+        <div class="field"><label>WhatsApp do Cliente</label><input type="text" id="appt-whatsapp" placeholder="Ex: 62988888888" /></div>
+        <div class="field full"><label>Selecione o Serviço</label><select id="appt-servico"></select></div>
+        <div class="field full"><label>Data e Horário</label><input type="datetime-local" id="appt-horario" /></div>
+      </div>
+      <div class="feedback" id="appt-feedback"></div>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="btn-cancelar-appt">Voltar</button>
+        <button class="btn-primary" id="btn-salvar-appt">Criar Agendamento</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: NOVO SERVIÇO -->
+  <div class="modal-overlay" id="modal-service">
+    <div class="modal-box">
+      <h3 class="modal-title">Adicionar Serviço</h3>
+      <p class="modal-sub">Defina o nome, preço e tempo padrão de execução.</p>
+      <div class="modal-grid">
+        <div class="field full"><label>Nome do Serviço</label><input type="text" id="service-nome" placeholder="Ex: Barba Terapia" /></div>
+        <div class="field"><label>Preço (R$)</label><input type="number" id="service-preco" step="0.01" placeholder="35.00" /></div>
+        <div class="field"><label>Duração (Minutos)</label><input type="number" id="service-duracao" placeholder="30" /></div>
+      </div>
+      <div class="feedback" id="service-feedback"></div>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="btn-cancelar-service">Cancelar</button>
+        <button class="btn-primary" id="btn-salvar-service">Salvar Alterações</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ALERTA NOTIFICAÇÃO -->
+  <div class="modal-overlay" id="modal-alert">
+    <div class="modal-box" style="text-align:center;">
+      <h3 class="modal-title" style="color:var(--gold-light);">🔔 Novo Agendamento Recebido!</h3>
+      <p class="modal-sub">O robô de Inteligência Artificial acabou de adicionar um cliente na sua agenda.</p>
+      <div id="alert-content" style="background:var(--panel-2); padding:16px; border-radius:var(--radius); text-align:left; font-size:14px; border:1px solid var(--border-2); margin-bottom:20px;"></div>
+      <button class="btn-primary" id="btn-close-alert" style="margin: 0 auto;">Entendido</button>
+    </div>
+  </div>
+
+  <!-- BOTÃO FLUTUANTE DO ONBOARDING / AJUDA -->
+  <button class="btn-help-floating" id="btn-help-tutorial" title="Ver Tutorial de Configuração">?</button>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
 </body>
-
 </html>
