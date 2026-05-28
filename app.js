@@ -1,690 +1,427 @@
 /* ── UaiBarber app.js ── */
-const SUPABASE_URL  = 'https://quzfhkuiduvukuxcmfoq.supabase.co';
+const SUPABASE_URL = 'https://quzfhkuiduvukuxcmfoq.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1emZoa3VpZHV2dWt1eGNtZm9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MDk3OTAsImV4cCI6MjA5NTQ4NTc5MH0.ztjj-YfMwJgbh606RisxEDW2NzMbfrCMOzzC50qaT3M';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
 /* ────── STATE ────── */
 const state = {
-  user: null,
-  profissional: null,
-  servicos: [],
-  agendamentos: [],
-  agendamentosAll: [],
-  currentDate: new Date(),
-  filterStatus: 'todos',
-  activeView: 'agenda',
-  realtimeChannel: null,
-  alertAppt: null, // for whatsapp alert modal
+    user: null,
+    profissional: null,
+    servicos: [],
+    agendamentos: [],
+    agendamentosAll: [],
+    bloqueios: [],
+    currentDate: new Date(),
+    filterStatus: 'todos',
+    activeView: 'agenda',
+    realtimeChannel: null,
+    alertAppt: null,
+    charts: { faturamento: null, servicos: null }
 };
 
 /* ────── HELPERS ────── */
 const $ = id => document.getElementById(id);
 const fmt = {
-  brl: v => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v || 0)),
-  time: d => new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(d)),
-  date: d => new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).format(d),
-  dateShort: d => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(d),
-  isoDate: d => d.toISOString().slice(0, 10),
-  dateFull: d => new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }).format(new Date(d)),
+    brl: v => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v || 0)),
+    time: d => new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
+    dateFull: d => new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+    dateISO: d => d.toISOString().split('T')[0]
 };
 
 function setFeedback(id, msg, type = '') {
-  const el = $(id);
-  if (!el) return;
-  el.textContent = msg;
-  el.className = 'feedback ' + type;
+    const el = $(id);
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'feedback ' + type;
 }
 
-function isToday(date) {
-  const t = new Date();
-  return date.getDate() === t.getDate() && date.getMonth() === t.getMonth() && date.getFullYear() === t.getFullYear();
-}
-
-/* ────── SUBSCRIPTION (MOCK) ────── */
-function loadSubscription() {
-  const today = new Date();
-  const start = new Date(today.getFullYear(), today.getMonth(), 1);
-  const end   = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-  const daysTotal = (end - start) / 86400000;
-  const daysLeft  = Math.ceil((end - today) / 86400000);
-  const pct = Math.round((1 - daysLeft / daysTotal) * 100);
-
-  const dot = $('sub-dot');
-  const titleMini = $('sub-title-mini');
-  const detailMini = $('sub-detail-mini');
-  const barMini = $('sub-bar-mini');
-
-  if (daysLeft <= 5) {
-    dot.className = 'sub-dot danger';
-    titleMini.textContent = 'Expira em breve!';
-  } else if (daysLeft <= 10) {
-    dot.className = 'sub-dot warning';
-    titleMini.textContent = 'Expirando em breve';
-  } else {
-    dot.className = 'sub-dot';
-    titleMini.textContent = 'Plano Pro Ativo';
-  }
-  detailMini.textContent = `${daysLeft} dias restantes`;
-  barMini.style.width = Math.max(5, 100 - pct) + '%';
-
-  $('sub-plan-name').textContent = 'Pro Mensal';
-  $('sub-expiry').textContent = fmt.dateShort(end);
-  $('sub-days-left').textContent = daysLeft + ' dias';
-  $('sub-period-start').textContent = fmt.dateShort(start);
-  $('sub-period-end').textContent = fmt.dateShort(end);
-  $('sub-big-bar').style.width = Math.max(5, 100 - pct) + '%';
-
-  const badge = $('sub-status-badge');
-  const statusText = $('sub-status-text');
-  if (daysLeft <= 0) {
-    badge.className = 'sub-status-badge vencido';
-    statusText.textContent = 'Vencida';
-    $('sub-big-bar').style.background = 'var(--danger)';
-  } else if (daysLeft <= 5) {
-    badge.className = 'sub-status-badge expirando';
-    statusText.textContent = 'Expirando';
-    $('sub-big-bar').style.background = 'var(--warning)';
-  } else {
-    badge.className = 'sub-status-badge ativo';
-    statusText.textContent = 'Ativo';
-  }
-}
-
-/* ────── PROFISSIONAL ────── */
+/* ────── INFRAESTRUTURA: CARREGAMENTO DE DADOS ────── */
 async function loadProfissional() {
-  const { data, error } = await sb
-    .from('profissionais')
-    .select('id, nome')
-    .eq('id', state.user.id)
-    .single();
-
-  if (error || !data) {
-    // Profile may not exist yet — create it
-    const nome = state.user.user_metadata?.nome || state.user.email?.split('@')[0] || 'Barbeiro';
-    const { data: inserted, error: insertErr } = await sb
-      .from('profissionais')
-      .upsert({ id: state.user.id, nome }, { onConflict: 'id' })
-      .select('id, nome')
-      .single();
-    if (insertErr) throw new Error('Erro ao criar perfil: ' + insertErr.message);
-    state.profissional = inserted;
-  } else {
-    state.profissional = data;
-  }
-
-  const initial = (state.profissional.nome || '?').trim().charAt(0).toUpperCase();
-  $('user-avatar').textContent = initial;
-  $('user-name-sidebar').textContent = state.profissional.nome;
+    const { data, error } = await sb.from('profissionais').select('*').eq('id', state.user.id).maybeSingle();
+    if (error) console.error(error);
+    if (data) {
+        state.profissional = data;
+        $('prof-name').textContent = data.nome;
+        $('prof-avatar').textContent = data.nome.charAt(0).toUpperCase();
+    }
 }
 
-/* ────── SERVIÇOS ────── */
 async function loadServicos() {
-  const { data, error } = await sb
-    .from('servicos')
-    .select('id, nome, preco, duracao_minutos')
-    .eq('prof_id', state.user.id)
-    .order('nome');
-  if (error) throw new Error('Erro ao carregar serviços.');
-  state.servicos = data || [];
-  renderServicesGrid();
-  renderServiceSelect();
+    const { data, error } = await sb.from('servicos').select('*').order('nome');
+    if (!error && data) {
+        state.servicos = data;
+        renderServicos();
+
+        const select = $('appt-servico');
+        if (select) {
+            select.innerHTML = data.map(s => `<option value="${s.id}">${s.nome} (${fmt.brl(s.preco)})</option>`).join('');
+        }
+    }
 }
 
-function renderServiceSelect() {
-  const sel = $('m-servico');
-  if (!state.servicos.length) {
-    sel.innerHTML = '<option value="">Nenhum serviço cadastrado</option>';
-    sel.disabled = true;
-    return;
-  }
-  sel.disabled = false;
-  sel.innerHTML = state.servicos.map(s =>
-    `<option value="${s.id}">${s.nome} • ${fmt.brl(s.preco)} • ${s.duracao_minutos}min</option>`
-  ).join('');
+async function loadAgenda(date) {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // 1. Carregar Agendamentos normais da data selecionada
+    const { data: appts, error: err1 } = await sb
+        .from('agendamentos')
+        .select('*, servicos(*)')
+        .gte('horario_inicio', startOfDay.toISOString())
+        .lte('horario_inicio', endOfDay.toISOString())
+        .order('horario_inicio', { ascending: true });
+
+    // 2. Carregar Bloqueios do barbeiro que cruzam ou ocorrem no dia
+    const { data: blks, error: err2 } = await sb
+        .from('bloqueios')
+        .select('*')
+        .gte('horario_fim', startOfDay.toISOString())
+        .lte('horario_inicio', endOfDay.toISOString())
+        .order('horario_inicio', { ascending: true });
+
+    if (!err1 && appts) state.agendamentos = appts;
+    if (!err2 && blks) state.bloqueios = blks;
+
+    renderTimeline();
 }
 
-function renderServicesGrid() {
-  const grid = $('services-grid');
-  if (!state.servicos.length) {
-    grid.innerHTML = `
-      <button class="btn-add-service" id="btn-add-first-service">
-        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Adicionar primeiro serviço
-      </button>`;
-    document.getElementById('btn-add-first-service')?.addEventListener('click', openServiceModal);
-    return;
-  }
+/* ────── COMPONENTE: RENDERIZAÇÃO DA AGENDA E TIMELINE ────── */
+function renderTimeline() {
+    const container = $('timeline-container');
+    container.innerHTML = '';
 
-  grid.innerHTML = state.servicos.map(s => `
-    <div class="service-card">
-      <div class="service-name">${s.nome}</div>
-      <div class="service-price">${fmt.brl(s.preco)}</div>
-      <div class="service-duration">
-        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        ${s.duracao_minutos} minutos
-      </div>
-      <div class="service-actions">
-        <button class="btn-sm btn-sm-danger" data-delete-service="${s.id}">Remover</button>
-      </div>
-    </div>
-  `).join('');
+    // Agrupar e mesclar agendamentos e bloqueios em uma única esteira do tempo
+    let itensMesclados = [];
 
-  grid.innerHTML += `
-    <button class="btn-add-service" id="btn-add-extra-service">
-      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      Novo serviço
-    </button>`;
-  document.getElementById('btn-add-extra-service')?.addEventListener('click', openServiceModal);
+    state.agendamentos.forEach(a => {
+        if (state.filterStatus !== 'todos' && a.status !== state.filterStatus) return;
+        itensMesclados.push({...a, tipoItem: 'agendamento' });
+    });
 
-  grid.querySelectorAll('[data-delete-service]').forEach(btn => {
-    btn.addEventListener('click', () => deleteService(btn.dataset.deleteService));
+    // Bloqueios entram apenas quando o filtro for 'todos'
+    if (state.filterStatus === 'todos') {
+        state.bloqueios.forEach(b => {
+            itensMesclados.push({...b, tipoItem: 'bloqueio', status: 'bloqueio' });
+        });
+    }
+
+    // Ordenar cronologicamente por hora de início
+    itensMesclados.sort((a, b) => new Date(a.horario_inicio) - new Date(b.horario_inicio));
+
+    if (itensMesclados.length === 0) {
+        container.innerHTML = '<p class="empty-state">Nenhum registro ou bloqueio para este dia.</p>';
+        return;
+    }
+
+    itensMesclados.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'appt-card';
+
+                if (item.tipoItem === 'bloqueio') {
+                    card.style.borderLeft = '4px solid var(--danger)';
+                    card.innerHTML = `
+        <div class="appt-time">🔒 ${fmt.time(item.horario_inicio)}</div>
+        <div class="appt-info-main">
+          <div class="appt-client-name">${item.titulo}</div>
+          <div class="appt-service-tag">Intervalo bloqueado até ${fmt.time(item.horario_fim)}</div>
+        </div>
+        <div class="appt-actions-cell">
+          <button class="btn-secondary" style="padding:4px 8px; font-size:11px; border-color:rgba(239,68,68,0.3); color:var(--danger);" onclick="removerBloqueio('${item.id}', event)">Desbloquear</button>
+        </div>
+      `;
+                } else {
+                    card.innerHTML = `
+        <div class="appt-time">⏰ ${fmt.time(item.horario_inicio)}</div>
+        <div class="appt-info-main">
+          <div class="appt-client-name">${item.nome_cliente}</div>
+          <div class="appt-service-tag">${item.servicos?.nome || 'Serviço não identificado'} — <span style="color:var(--gold-light); font-weight:600;">${fmt.brl(item.servicos?.preco)}</span></div>
+        </div>
+        <div class="appt-actions-cell">
+          <span class="pill pill-${item.status}">${item.status}</span>
+          ${item.status === 'confirmado' || item.status === 'pendente' ? `
+            <button class="btn-icon" style="color:var(--success);" title="Concluir Atendimento" onclick="alterarStatus('${item.id}', 'concluido', event)">✔</button>
+            <button class="btn-icon" style="color:var(--danger);" title="Cancelar Agendamento" onclick="alterarStatus('${item.id}', 'cancelado', event)">✖</button>
+          ` : ''}
+        </div>
+      `;
+      // Cliques no card ativam o histórico do cliente
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-icon') || e.target.closest('button')) return;
+        abrirHistoricoCliente(item.whatsapp_cliente, item.nome_cliente);
+      });
+    }
+    container.appendChild(card);
   });
 }
 
-async function saveService() {
-  // Guarantee profissional exists before inserting service (fixes FK error)
-  if (!state.profissional) {
-    setFeedback('s-feedback', 'Perfil não carregado. Recarregue a página.', 'error');
+/* ────── RECURSO: HISTÓRICO COMPLETO DO CLIENTE ────── */
+async function abrirHistoricoCliente(whatsapp, nome) {
+  $('hist-nome-cliente').textContent = nome;
+  $('hist-whatsapp-cliente').textContent = `WhatsApp: ${whatsapp}`;
+
+  const { data: appts, error } = await sb
+    .from('agendamentos')
+    .select('*, servicos(nome, preco)')
+    .eq('whatsapp_cliente', whatsapp)
+    .order('horario_inicio', { ascending: false });
+
+  if (error || !appts) {
+    alert('Erro ao processar histórico do cliente.');
     return;
   }
 
-  const nome    = $('s-nome').value.trim();
-  const preco   = parseFloat($('s-preco').value);
-  const duracao = parseInt($('s-duracao').value, 10);
+  const concluidos = appts.filter(a => a.status === 'concluido');
+  const totalCortes = concluidos.length;
+  const gastoTotal = concluidos.reduce((acc, c) => acc + Number(c.servicos?.preco || 0), 0);
+  const ticketMedio = totalCortes > 0 ? gastoTotal / totalCortes : 0;
 
-  if (!nome || isNaN(preco) || isNaN(duracao)) {
-    setFeedback('s-feedback', 'Preencha todos os campos.', 'error'); return;
+  $('hist-total-cortes').textContent = totalCortes;
+  $('hist-total-gasto').textContent = fmt.brl(gastoTotal);
+  $('hist-ticket-medio').textContent = fmt.brl(ticketMedio);
+
+  const container = $('hist-lista-cortes');
+  container.innerHTML = appts.map(a => `
+    <div class="appt-card" style="grid-template-columns:1fr auto; padding:10px 12px; font-size:13px; background:rgba(255,255,255,0.01)">
+      <div>
+        <div style="font-weight:600;">${a.servicos?.nome || 'Serviço Removido'}</div>
+        <div style="font-size:11px; color:var(--muted);">${fmt.dateFull(a.horario_inicio)}</div>
+      </div>
+      <div style="text-align:right;">
+        <span class="pill pill-${a.status}" style="font-size:9px; padding:2px 6px;">${a.status}</span>
+        <div style="font-weight:700; color:var(--gold-light); margin-top:4px;">${fmt.brl(a.servicos?.preco)}</div>
+      </div>
+    </div>
+  `).join(appts.length === 0 ? '<p class="empty-state">Nenhum atendimento no histórico.</p>' : '');
+
+  $('modal-historico').classList.add('open');
+}
+
+/* ────── RECURSO: BLOQUEIO DE HORÁRIOS DA AGENDA ────── */
+async function salvarBloqueio() {
+  const titulo = $('bloqueio-titulo').value.trim();
+  const inicio = $('bloqueio-inicio').value;
+  const fim = $('bloqueio-fim').value;
+
+  if (!titulo || !inicio || !fim) {
+    setFeedback('bloqueio-feedback', 'Por favor, preencha todos os campos.', 'error');
+    return;
+  }
+  if (new Date(fim) <= new Date(inicio)) {
+    setFeedback('bloqueio-feedback', 'O horário final deve ser após o início.', 'error');
+    return;
   }
 
-  $('save-service-btn').disabled = true;
-  setFeedback('s-feedback', 'Salvando...');
-
-  // Ensure prof row exists (safety upsert)
-  await sb.from('profissionais').upsert(
-    { id: state.user.id, nome: state.profissional.nome },
-    { onConflict: 'id' }
-  );
-
-  const { error } = await sb.from('servicos').insert({
-    prof_id: state.user.id, nome, preco, duracao_minutos: duracao
+  const { error } = await sb.from('bloqueios').insert({
+    prof_id: state.user.id,
+    titulo,
+    horario_inicio: new Date(inicio).toISOString(),
+    horario_fim: new Date(fim).toISOString()
   });
 
   if (error) {
-    setFeedback('s-feedback', 'Erro: ' + error.message, 'error');
-    $('save-service-btn').disabled = false;
-    return;
-  }
-
-  setFeedback('s-feedback', 'Serviço criado!', 'success');
-  await loadServicos();
-  setTimeout(closeServiceModal, 600);
-  $('save-service-btn').disabled = false;
-}
-
-async function deleteService(id) {
-  if (!confirm('Remover este serviço? Agendamentos existentes não serão afetados.')) return;
-  await sb.from('servicos').delete().eq('id', id);
-  await loadServicos();
-}
-
-/* ────── AGENDAMENTOS ────── */
-async function loadAgenda(date) {
-  const start = new Date(date); start.setHours(0, 0, 0, 0);
-  const end   = new Date(date); end.setHours(23, 59, 59, 999);
-
-  const { data, error } = await sb
-    .from('agendamentos')
-    .select('id, nome_cliente, whatsapp_cliente, horario_inicio, status, servico_id, servicos(nome, preco, duracao_minutos)')
-    .eq('prof_id', state.user.id)
-    .gte('horario_inicio', start.toISOString())
-    .lte('horario_inicio', end.toISOString())
-    .order('horario_inicio', { ascending: true });
-
-  if (error) throw new Error(error.message);
-  state.agendamentos = data || [];
-  renderTimeline();
-  renderDaySummary();
-  updateBadge();
-}
-
-async function loadMonthAgenda() {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  const end   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-
-  const { data } = await sb
-    .from('agendamentos')
-    .select('id, nome_cliente, horario_inicio, status, servicos(nome, preco)')
-    .eq('prof_id', state.user.id)
-    .gte('horario_inicio', start.toISOString())
-    .lte('horario_inicio', end.toISOString())
-    .order('horario_inicio', { ascending: false });
-
-  state.agendamentosAll = data || [];
-  renderOverview();
-}
-
-function apptMatchesFilter(item) {
-  if (state.filterStatus === 'todos') return true;
-  return item.status === state.filterStatus;
-}
-
-function renderTimeline() {
-  const tl = $('timeline');
-  const filtered = state.agendamentos.filter(apptMatchesFilter);
-
-  $('agenda-count').textContent = `${filtered.length} agendamento${filtered.length !== 1 ? 's' : ''}`;
-
-  if (!filtered.length) {
-    tl.innerHTML = `
-      <div class="empty-state">
-        <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        <p>${state.filterStatus !== 'todos' ? 'Nenhum agendamento com esse filtro.' : isToday(state.currentDate) ? 'Nenhum agendamento para hoje.<br>Use o botão <strong>Novo agendamento</strong> para criar um.' : 'Nenhum agendamento nesse dia.'}</p>
-      </div>`;
-    return;
-  }
-
-  tl.innerHTML = filtered.map(item => {
-    const endTime = item.servicos?.duracao_minutos
-      ? new Date(new Date(item.horario_inicio).getTime() + item.servicos.duracao_minutos * 60000)
-      : null;
-
-    const canComplete = ['pendente', 'confirmado'].includes(item.status);
-    const canCancel   = ['pendente', 'confirmado'].includes(item.status);
-    const hasWhatsapp = !!item.whatsapp_cliente;
-
-    return `
-    <div class="appt-card" data-id="${item.id}">
-      <div>
-        <div class="appt-time">${fmt.time(item.horario_inicio)}</div>
-        ${endTime ? `<div class="appt-time-end">até ${fmt.time(endTime)}</div>` : ''}
-      </div>
-      <div>
-        <div class="appt-client">${item.nome_cliente}</div>
-        <div class="appt-service">${item.servicos?.nome || 'Serviço'}</div>
-        ${item.whatsapp_cliente ? `<div class="appt-phone">📱 ${item.whatsapp_cliente}</div>` : ''}
-      </div>
-      <div class="appt-right">
-        <div class="appt-price">${item.servicos?.preco ? fmt.brl(item.servicos.preco) : '–'}</div>
-        <span class="pill pill-${item.status}">${item.status}</span>
-        <div class="appt-actions">
-          ${hasWhatsapp ? `<button class="btn-icon whatsapp-alert" data-action="alert" data-id="${item.id}" title="Enviar alerta WhatsApp">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-          </button>` : ''}
-          ${canComplete ? `<button class="btn-icon complete" data-action="complete" data-id="${item.id}" title="Marcar como concluído">
-            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-          </button>` : ''}
-          ${canCancel ? `<button class="btn-icon cancel" data-action="cancel" data-id="${item.id}" title="Cancelar">
-            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>` : ''}
-        </div>
-      </div>
-    </div>`;
-  }).join('');
-
-  tl.querySelectorAll('[data-action]').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      if (btn.dataset.action === 'complete') updateApptStatus(btn.dataset.id, 'concluido');
-      if (btn.dataset.action === 'cancel')   updateApptStatus(btn.dataset.id, 'cancelado');
-      if (btn.dataset.action === 'alert')    openAlertModal(btn.dataset.id);
-    });
-  });
-}
-
-function renderDaySummary() {
-  const active = state.agendamentos.filter(a => a.status !== 'cancelado');
-  const fat = active.reduce((acc, a) => acc + Number(a.servicos?.preco || 0), 0);
-
-  $('side-faturamento').textContent = fmt.brl(fat);
-  $('side-faturamento-sub').textContent = `${active.length} atendimento${active.length !== 1 ? 's' : ''}`;
-
-  const summary = $('day-summary');
-  const counts = { confirmado: 0, pendente: 0, concluido: 0, cancelado: 0 };
-  state.agendamentos.forEach(a => { if (counts[a.status] !== undefined) counts[a.status]++; });
-
-  summary.innerHTML = [
-    { label: 'Confirmados', key: 'confirmado', color: 'var(--success)' },
-    { label: 'Pendentes',   key: 'pendente',   color: 'var(--warning)' },
-    { label: 'Concluídos',  key: 'concluido',  color: 'var(--info)' },
-    { label: 'Cancelados',  key: 'cancelado',  color: 'var(--danger)' },
-  ].map(r => `
-    <div class="slot-row">
-      <span class="slot-time">${r.label}</span>
-      <span style="font-size:14px;font-weight:700;color:${r.color}">${counts[r.key]}</span>
-    </div>`).join('');
-}
-
-function renderOverview() {
-  const today = new Date();
-  const todayStart = new Date(today); todayStart.setHours(0, 0, 0, 0);
-  const todayEnd   = new Date(today); todayEnd.setHours(23, 59, 59, 999);
-
-  const todayItems = state.agendamentosAll.filter(a => {
-    const d = new Date(a.horario_inicio);
-    return d >= todayStart && d <= todayEnd && a.status !== 'cancelado';
-  });
-  const fat = todayItems.reduce((acc, a) => acc + Number(a.servicos?.preco || 0), 0);
-
-  $('ov-fat-dia').textContent = fmt.brl(fat);
-  $('ov-fat-sub').textContent = `${todayItems.length} atendimento${todayItems.length !== 1 ? 's' : ''}`;
-  $('ov-clientes').textContent = todayItems.length;
-
-  const monthActive = state.agendamentosAll.filter(a => a.status !== 'cancelado');
-  $('ov-mes').textContent = monthActive.length;
-
-  const future = state.agendamentosAll
-    .filter(a => new Date(a.horario_inicio) > new Date() && ['confirmado', 'pendente'].includes(a.status))
-    .sort((a, b) => new Date(a.horario_inicio) - new Date(b.horario_inicio));
-
-  if (future.length) {
-    $('ov-proximo').textContent = fmt.time(future[0].horario_inicio);
-    $('ov-proximo-sub').textContent = future[0].nome_cliente;
+    setFeedback('bloqueio-feedback', 'Falha ao salvar: ' + error.message, 'error');
   } else {
-    $('ov-proximo').textContent = '–';
-    $('ov-proximo-sub').textContent = 'sem próximos agendamentos';
+    setFeedback('bloqueio-feedback', 'Horário bloqueado com sucesso!', 'success');
+    $('bloqueio-titulo').value = ''; $('bloqueio-inicio').value = ''; $('bloqueio-fim').value = '';
+    setTimeout(() => {
+      $('modal-bloqueio').classList.remove('open');
+      loadAgenda(state.currentDate);
+    }, 1000);
   }
-
-  const recent = state.agendamentosAll.slice(0, 8);
-  const list = $('ov-recent-list');
-  if (!recent.length) {
-    list.innerHTML = '<div class="empty-state" style="padding:24px"><p>Nenhum agendamento no mês.</p></div>';
-    return;
-  }
-  list.innerHTML = recent.map(a => `
-    <div class="appt-card" style="margin-bottom:6px">
-      <div>
-        <div class="appt-time" style="font-size:15px">${fmt.time(a.horario_inicio)}</div>
-        <div class="appt-time-end">${fmt.dateShort(new Date(a.horario_inicio))}</div>
-      </div>
-      <div>
-        <div class="appt-client">${a.nome_cliente}</div>
-        <div class="appt-service">${a.servicos?.nome || 'Serviço'}</div>
-      </div>
-      <div class="appt-right">
-        <div class="appt-price">${a.servicos?.preco ? fmt.brl(a.servicos.preco) : '–'}</div>
-        <span class="pill pill-${a.status}">${a.status}</span>
-      </div>
-    </div>`).join('');
 }
 
-async function updateApptStatus(id, status) {
-  await sb.from('agendamentos').update({ status }).eq('id', id);
-  await loadAgenda(state.currentDate);
-  await loadMonthAgenda();
+async function removerBloqueio(id, event) {
+  event.stopPropagation();
+  if (confirm('Tem certeza que deseja remover este bloqueio de horário?')) {
+    await sb.from('bloqueios').delete().eq('id', id);
+    loadAgenda(state.currentDate);
+  }
 }
 
-async function saveAppointment() {
-  const nome     = $('m-nome').value.trim();
-  const whatsapp = $('m-whatsapp').value.trim();
-  const servId   = $('m-servico').value;
-  const data     = $('m-data').value;
-  const hora     = $('m-hora').value;
+/* ────── RECURSO: RELATÓRIO FINANCEIRO REAL ────── */
+async function renderizarRelatoriosVisuais() {
+  const { data: appts, error } = await sb.from('agendamentos').select('*, servicos(*)');
+  if (error || !appts) return;
 
-  if (!nome || !whatsapp || !servId || !data || !hora) {
-    setFeedback('m-feedback', 'Preencha todos os campos.', 'error'); return;
-  }
+  const concluidos = appts.filter(a => a.status === 'concluido');
+  const faturamentoTotal = concluidos.reduce((acc, c) => acc + Number(c.servicos?.preco || 0), 0);
+  const totalConcluidos = concluidos.length;
+  const ticketMedio = totalConcluidos > 0 ? faturamentoTotal / totalConcluidos : 0;
 
-  $('save-appt-btn').disabled = true;
-  setFeedback('m-feedback', 'Salvando...');
+  // Ranqueamento de serviços
+  const contagemServicos = {};
+  concluidos.forEach(a => {
+    const nome = a.servicos?.nome || 'Não identificado';
+    contagemServicos[nome] = (contagemServicos[nome] || 0) + 1;
+  });
+  const servicoMaisVendido = Object.keys(contagemServicos).reduce((a, b) => contagemServicos[a] > contagemServicos[b] ? a : b, '-');
 
-  const horario_inicio = new Date(`${data}T${hora}:00`).toISOString();
+  // Atualizar contadores estáticos
+  $('rep-ticket-medio').textContent = fmt.brl(ticketMedio);
+  $('rep-servico-topo').textContent = servicoMaisVendido;
+  $('rep-faturamento-total').textContent = fmt.brl(faturamentoTotal);
+  $('rep-total-concluidos').textContent = totalConcluidos;
 
-  const { data: conflict } = await sb
-    .from('agendamentos')
-    .select('id')
-    .eq('prof_id', state.user.id)
-    .eq('horario_inicio', horario_inicio)
-    .in('status', ['pendente', 'confirmado'])
-    .limit(1);
+  // Agrupamento temporal para o gráfico de faturamento
+  const faturamentoPorDia = {};
+  concluidos.forEach(a => {
+    const dataFormatada = new Date(a.horario_inicio).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    faturamentoPorDia[dataFormatada] = (faturamentoPorDia[dataFormatada] || 0) + Number(a.servicos?.preco || 0);
+  });
 
-  if (conflict?.length) {
-    setFeedback('m-feedback', 'Já existe um agendamento neste horário.', 'error');
-    $('save-appt-btn').disabled = false; return;
+  // Limpar instâncias antigas dos gráficos (evita bugs visuais de hover)
+  if (state.charts.faturamento) state.charts.faturamento.destroy();
+  if (state.charts.servicos) state.charts.servicos.destroy();
+
+  // Gráfico 1: Linha de Faturamento
+  const ctxFaturamento = $('chartFaturamento').getContext('2d');
+  state.charts.faturamento = new Chart(ctxFaturamento, {
+    type: 'line',
+    data: {
+      labels: Object.keys(faturamentoPorDia),
+      datasets: [{
+        label: 'Ganhos do Dia (R$)',
+        data: Object.values(faturamentoPorDia),
+        borderColor: '#c9933a',
+        backgroundColor: 'rgba(201,147,58,0.08)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#8896a8' }, grid: { color: 'rgba(255,255,255,0.03)' } },
+        y: { ticks: { color: '#8896a8' }, grid: { color: 'rgba(255,255,255,0.03)' } }
+      }
+    }
+  });
+
+  // Gráfico 2: Rosca de Distribuição de Serviços
+  const ctxServicos = $('chartServicos').getContext('2d');
+  state.charts.servicos = new Chart(ctxServicos, {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(contagemServicos),
+      datasets: [{
+        data: Object.values(contagemServicos),
+        backgroundColor: ['#c9933a', '#e8b56a', '#3b82f6', '#22c55e', '#a855f7', '#f97316'],
+        borderColor: '#0c1118',
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { color: '#eef0f4', boxWidth: 12 } } }
+    }
+  });
+}
+
+/* ────── GERENCIAMENTO DE STATUS E AGENDAMENTOS MANUAIS ────── */
+async function alterarStatus(id, novoStatus, event) {
+  if (event) event.stopPropagation();
+  const { error } = await sb.from('agendamentos').update({ status: novoStatus }).eq('id', id);
+  if (!error) loadAgenda(state.currentDate);
+}
+
+async function criarAgendamentoManual() {
+  const nome = $('appt-nome').value.trim();
+  const whatsapp = $('appt-whatsapp').value.trim();
+  const servicoId = $('appt-servico').value;
+  const horario = $('appt-horario').value;
+
+  if (!nome || !whatsapp || !servicoId || !horario) {
+    setFeedback('appt-feedback', 'Preencha todos os dados.', 'error'); return;
   }
 
   const { error } = await sb.from('agendamentos').insert({
     prof_id: state.user.id,
-    servico_id: servId,
+    servico_id: servicoId,
     nome_cliente: nome,
     whatsapp_cliente: whatsapp,
-    horario_inicio,
-    status: 'confirmado',
+    horario_inicio: new Date(horario).toISOString()
   });
 
-  if (error) { setFeedback('m-feedback', error.message, 'error'); $('save-appt-btn').disabled = false; return; }
-
-  setFeedback('m-feedback', 'Agendamento salvo!', 'success');
-  state.currentDate = new Date(`${data}T${hora}:00`);
-  await loadAgenda(state.currentDate);
-  await loadMonthAgenda();
-  updateDateLabel();
-  setTimeout(closeApptModal, 500);
-  $('save-appt-btn').disabled = false;
+  if (error) {
+    setFeedback('appt-feedback', error.message, 'error');
+  } else {
+    setFeedback('appt-feedback', 'Agendado com sucesso!', 'success');
+    $('appt-nome').value = ''; $('appt-whatsapp').value = '';
+    setTimeout(() => { $('modal-appt').classList.remove('open'); loadAgenda(state.currentDate); }, 1000);
+  }
 }
 
-/* ────── WHATSAPP ALERT MODAL ────── */
-const ALERT_TEMPLATES = [
-  {
-    id: 'lembrete',
-    icon: '🔔',
-    label: 'Lembrete de corte',
-    text: (appt) => `Olá, ${appt.nome_cliente}! 👋\n\nPassando para lembrar que você tem um agendamento na *UaiBarber* ${fmt.dateFull(appt.horario_inicio) ? 'marcado para ' + fmt.dateFull(appt.horario_inicio) : ''}.\n\nEstamos te esperando! ✂️`,
-  },
-  {
-    id: 'cancelamento',
-    icon: '❌',
-    label: 'Aviso de cancelamento',
-    text: (appt) => `Olá, ${appt.nome_cliente}!\n\nInfelizmente precisamos *cancelar* seu agendamento que estava marcado para ${fmt.dateFull(appt.horario_inicio)}.\n\nPedimos desculpas pelo inconveniente. Entre em contato para reagendarmos! 🙏`,
-  },
-  {
-    id: 'reagendamento',
-    icon: '📅',
-    label: 'Proposta de reagendamento',
-    text: (appt) => `Olá, ${appt.nome_cliente}! 😊\n\nGostaríamos de *remarcar* seu atendimento que estava para ${fmt.dateFull(appt.horario_inicio)}.\n\nQual horário fica melhor para você? Responda aqui e já agendamos! ✂️`,
-  },
-  {
-    id: 'confirmacao',
-    icon: '✅',
-    label: 'Confirmação de horário',
-    text: (appt) => `Olá, ${appt.nome_cliente}! ✅\n\nSeu agendamento está *confirmado* para ${fmt.dateFull(appt.horario_inicio)}.\n\nQualquer dúvida, é só chamar. Te esperamos! 💈`,
-  },
-  {
-    id: 'personalizada',
-    icon: '✏️',
-    label: 'Mensagem personalizada',
-    text: (appt) => `Olá, ${appt.nome_cliente}! `,
-  },
-];
-
-function openAlertModal(apptId) {
-  const appt = state.agendamentos.find(a => a.id === apptId);
-  if (!appt) return;
-  state.alertAppt = appt;
-
-  $('alert-client-name').textContent = appt.nome_cliente;
-  $('alert-client-phone').textContent = appt.whatsapp_cliente;
-  $('alert-appt-info').textContent = `${appt.servicos?.nome || 'Serviço'} • ${fmt.time(appt.horario_inicio)}`;
-
-  // Render template chips
-  const chips = $('alert-template-chips');
-  chips.innerHTML = ALERT_TEMPLATES.map(t => `
-    <button class="alert-chip" data-template="${t.id}">
-      <span>${t.icon}</span> ${t.label}
-    </button>
-  `).join('');
-
-  chips.querySelectorAll('.alert-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      chips.querySelectorAll('.alert-chip').forEach(c => c.classList.remove('active'));
-      chip.classList.add('active');
-      const tpl = ALERT_TEMPLATES.find(t => t.id === chip.dataset.template);
-      if (tpl) $('alert-message').value = tpl.text(appt);
-    });
-  });
-
-  // Select first template by default
-  const defaultTpl = ALERT_TEMPLATES[0];
-  chips.querySelector('[data-template="lembrete"]')?.classList.add('active');
-  $('alert-message').value = defaultTpl.text(appt);
-
-  $('modal-alert').classList.add('open');
+/* ────── MEUS SERVIÇOS ────── */
+function renderServicos() {
+  const container = $('services-container');
+  if (!container) return;
+  container.innerHTML = state.servicos.map(s => `
+    <div class="appt-card" style="grid-template-columns: 1fr auto;">
+      <div>
+        <div class="appt-client-name">${s.nome}</div>
+        <div class="appt-service-tag">Duração: ${s.duracao_minutos} min | Valor: <span style="color:var(--gold-light); font-weight:600;">${fmt.brl(s.preco)}</span></div>
+      </div>
+      <div>
+        <button class="btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="removerServico('${s.id}')">Excluir</button>
+      </div>
+    </div>
+  `).join(state.servicos.length === 0 ? '<p class="empty-state">Nenhum serviço cadastrado.</p>' : '');
 }
 
-function closeAlertModal() {
-  $('modal-alert').classList.remove('open');
-  state.alertAppt = null;
+async function removerServico(id) {
+  if (confirm('Deseja mesmo remover este serviço?')) {
+    await sb.from('servicos').delete().eq('id', id);
+    loadServicos();
+  }
 }
 
-function sendWhatsappAlert() {
-  const appt = state.alertAppt;
-  if (!appt) return;
-  const msg = $('alert-message').value.trim();
-  if (!msg) { alert('Digite uma mensagem antes de enviar.'); return; }
-
-  let phone = appt.whatsapp_cliente.replace(/\D/g, '');
-  if (!phone.startsWith('55')) phone = '55' + phone;
-
-  const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
-  window.open(url, '_blank');
-  closeAlertModal();
-}
-
-/* ────── DATE NAVIGATION ────── */
+/* ────── EVENT BINDINGS (OUVINTES DE INTERAÇÃO) ────── */
 function updateDateLabel() {
-  $('current-date-label').textContent = isToday(state.currentDate)
-    ? 'Hoje, ' + fmt.date(state.currentDate)
-    : fmt.date(state.currentDate);
-  $('topbar-sub').textContent = isToday(state.currentDate)
-    ? 'Seus agendamentos de hoje'
-    : `Agendamentos de ${fmt.dateShort(state.currentDate)}`;
+  $('current-date-lbl').textContent = state.currentDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-function changeDate(offset) {
-  state.currentDate = new Date(state.currentDate);
-  state.currentDate.setDate(state.currentDate.getDate() + offset);
-  updateDateLabel();
-  loadAgenda(state.currentDate);
-}
-
-/* ────── VIEW SWITCHING ────── */
-const viewTitles = {
-  agenda:     ['Agenda', 'Seus agendamentos'],
-  overview:   ['Visão Geral', 'Resumo do seu negócio'],
-  servicos:   ['Serviços', 'Gerencie seu catálogo'],
-  assinatura: ['Assinatura', 'Plano e renovação'],
-};
-
-function switchView(name) {
-  state.activeView = name;
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.getElementById('view-' + name)?.classList.add('active');
-  document.querySelectorAll('.nav-item').forEach(b => {
-    b.classList.toggle('active', b.dataset.view === name);
-  });
-  const [title, sub] = viewTitles[name] || ['–', ''];
-  $('topbar-title').textContent = title;
-  $('topbar-sub').textContent   = sub;
-
-  if (name === 'overview') loadMonthAgenda();
-}
-
-function updateBadge() {
-  const active = state.agendamentos.filter(a => ['pendente', 'confirmado'].includes(a.status));
-  $('badge-agenda').textContent = active.length;
-}
-
-/* ────── MODALS ────── */
-function openApptModal() {
-  const now = new Date();
-  $('m-data').value = fmt.isoDate(now);
-  $('m-hora').value = `${String(now.getHours()).padStart(2,'0')}:${String(Math.ceil(now.getMinutes()/5)*5 % 60).padStart(2,'0')}`;
-  setFeedback('m-feedback', '');
-  $('modal-agendamento').classList.add('open');
-}
-function closeApptModal() {
-  $('modal-agendamento').classList.remove('open');
-  $('m-nome').value = '';
-  $('m-whatsapp').value = '';
-  $('save-appt-btn').disabled = false;
-}
-
-function openServiceModal() {
-  setFeedback('s-feedback', '');
-  $('s-nome').value = '';
-  $('s-preco').value = '';
-  $('s-duracao').value = '';
-  $('modal-servico').classList.add('open');
-}
-function closeServiceModal() {
-  $('modal-servico').classList.remove('open');
-  $('save-service-btn').disabled = false;
-}
-
-/* ────── REALTIME ────── */
-function startRealtime() {
-  if (state.realtimeChannel) sb.removeChannel(state.realtimeChannel);
-  state.realtimeChannel = sb
-    .channel('agendamentos-' + state.user.id)
-    .on('postgres_changes', {
-      event: '*', schema: 'public', table: 'agendamentos',
-      filter: `prof_id=eq.${state.user.id}`
-    }, async () => {
-      await loadAgenda(state.currentDate);
-    })
-    .subscribe();
-}
-
-/* ────── LOGOUT ────── */
-async function logout() {
-  try { await sb.auth.signOut(); } catch (e) {}
-  window.location.replace('./index.html');
-}
-
-/* ────── MOBILE MENU ────── */
-function openSidebar() {
-  $('sidebar').classList.add('open');
-  $('sidebar-overlay').classList.add('open');
-}
-function closeSidebar() {
-  $('sidebar').classList.remove('open');
-  $('sidebar-overlay').classList.remove('open');
-}
-
-/* ────── BIND EVENTS ────── */
 function bindEvents() {
-  $('logout-btn').addEventListener('click', logout);
-
-  document.querySelectorAll('.nav-item[data-view]').forEach(btn => {
+  // Controle de Abas
+  document.querySelectorAll('.nav-item').forEach(btn => {
     btn.addEventListener('click', () => {
-      switchView(btn.dataset.view);
+      document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+
+      btn.classList.add('active');
+      const target = btn.dataset.target;
+      if ($(target)) $(target).classList.add('active');
+
+      // Títulos dinâmicos na Topbar
+      if (target === 'view-agenda') { $('topbar-title').textContent = 'Agenda'; $('topbar-subtitle').textContent = 'Gerencie horários e atendimentos do dia'; }
+      if (target === 'view-relatorios') { $('topbar-title').textContent = 'Relatórios'; $('topbar-subtitle').textContent = 'Análise de performance e ticket médio'; renderizarRelatoriosVisuais(); }
+      if (target === 'view-servicos') { $('topbar-title').textContent = 'Serviços'; $('topbar-subtitle').textContent = 'Configure o menu e catálogo da barbearia'; }
+      if (target === 'view-assinatura') { $('topbar-title').textContent = 'Assinatura'; $('topbar-subtitle').textContent = 'Faturamento e licença do ecossistema'; }
+      
       closeSidebar();
     });
   });
 
-  $('prev-day').addEventListener('click', () => changeDate(-1));
-  $('next-day').addEventListener('click', () => changeDate(1));
-  $('go-today').addEventListener('click', () => {
-    state.currentDate = new Date();
-    updateDateLabel();
-    loadAgenda(state.currentDate);
-  });
+  // Eventos de Navegação de Data
+  $('btn-prev-day').addEventListener('click', () => { state.currentDate.setDate(state.currentDate.getDate() - 1); updateDateLabel(); loadAgenda(state.currentDate); });
+  $('btn-next-day').addEventListener('click', () => { state.currentDate.setDate(state.currentDate.getDate() + 1); updateDateLabel(); loadAgenda(state.currentDate); });
 
-  $('open-modal-btn').addEventListener('click', openApptModal);
-  $('close-modal-btn').addEventListener('click', closeApptModal);
-  $('save-appt-btn').addEventListener('click', saveAppointment);
-  $('modal-agendamento').addEventListener('click', e => { if (e.target === $('modal-agendamento')) closeApptModal(); });
+  // Modais de Controle
+  $('btn-open-bloqueio').addEventListener('click', () => { $('bloqueio-feedback').className = 'feedback'; $('modal-bloqueio').classList.add('open'); });
+  $('btn-cancelar-bloqueio').addEventListener('click', () => $('modal-bloqueio').classList.remove('open'));
+  $('btn-salvar-bloqueio').addEventListener('click', salvarBloqueio);
+  $('btn-fechar-historico').addEventListener('click', () => $('modal-historico').classList.remove('open'));
 
-  $('open-service-modal-btn').addEventListener('click', openServiceModal);
-  $('close-service-modal-btn').addEventListener('click', closeServiceModal);
-  $('save-service-btn').addEventListener('click', saveService);
-  $('modal-servico').addEventListener('click', e => { if (e.target === $('modal-servico')) closeServiceModal(); });
+  $('btn-new-appt').addEventListener('click', () => { $('appt-feedback').className = 'feedback'; $('modal-appt').classList.add('open'); });
+  $('btn-cancelar-appt').addEventListener('click', () => $('modal-appt').classList.remove('open'));
+  $('btn-salvar-appt').addEventListener('click', criarAgendamentoManual);
 
-  // Alert modal
-  $('close-alert-modal-btn').addEventListener('click', closeAlertModal);
-  $('send-alert-btn').addEventListener('click', sendWhatsappAlert);
-  $('modal-alert').addEventListener('click', e => { if (e.target === $('modal-alert')) closeAlertModal(); });
-
+  // Filtros de status da Timeline
   $('status-filter').querySelectorAll('.status-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       $('status-filter').querySelectorAll('.status-chip').forEach(c => c.classList.remove('active'));
@@ -694,23 +431,36 @@ function bindEvents() {
     });
   });
 
-  $('refresh-btn').addEventListener('click', async () => {
-    await loadAgenda(state.currentDate);
-    if (state.activeView === 'overview') await loadMonthAgenda();
-  });
+  $('refresh-btn').addEventListener('click', () => loadAgenda(state.currentDate));
+  $('logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); window.location.replace('./index.html'); });
+  $('btn-close-alert').addEventListener('click', () => $('modal-alert').classList.remove('open'));
 
-  $('btn-renew-sub')?.addEventListener('click', () => {
-    alert('Entre em contato via WhatsApp para renovar sua assinatura:\n📱 (62) 9 9999-0000');
-  });
-  $('btn-history-sub')?.addEventListener('click', () => {
-    alert('Histórico de pagamentos em breve disponível neste painel.');
-  });
-
-  $('mobile-menu-btn').addEventListener('click', openSidebar);
+  // Mobile Menu
+  $('mobile-menu-btn').addEventListener('click', () => { $('sidebar').classList.add('open'); $('sidebar-overlay').style.display = 'block'; });
   $('sidebar-overlay').addEventListener('click', closeSidebar);
 }
 
-/* ────── INIT ────── */
+function closeSidebar() { $('sidebar').classList.remove('open'); $('sidebar-overlay').style.display = 'none'; }
+
+/* ────── REALTIME (NOTIFICAÇÃO ATIVA DO BOT) ────── */
+function startRealtime() {
+  state.realtimeChannel = sb.channel('mudancas-agenda')
+    .on('postgres_changes', { event: 'INSERT', pattern: 'public', table: 'agendamentos' }, async (payload) => {
+      const { data: appt } = await sb.from('agendamentos').select('*, servicos(*)').eq('id', payload.new.id).maybeSingle();
+      if (appt) {
+        $('alert-content').innerHTML = `
+          <strong>Cliente:</strong> ${appt.nome_cliente}<br>
+          <strong>Serviço:</strong> ${appt.servicos?.nome}<br>
+          <strong>Horário:</strong> ${fmt.dateFull(appt.horario_inicio)}
+        `;
+        $('modal-alert').classList.add('open');
+        loadAgenda(state.currentDate);
+      }
+    })
+    .subscribe();
+}
+
+/* ────── INICIALIZAÇÃO (INIT) ────── */
 async function init() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { window.location.replace('./index.html'); return; }
@@ -723,11 +473,10 @@ async function init() {
     await loadProfissional();
     await loadServicos();
     await loadAgenda(state.currentDate);
-    loadSubscription();
     startRealtime();
-  } catch (err) {
-    $('timeline').innerHTML = `<div class="empty-state"><p>Erro: ${err.message}</p></div>`;
+  } catch (e) {
+    console.error('Erro na inicialização do painel:', e);
   }
 }
 
-init();
+window.addEventListener('DOMContentLoaded', init);
