@@ -28,12 +28,9 @@
             --radius: 8px;
         }
         
-        *,
-        *::before,
-        *::after {
+        *, *::before, *::after {
             box-sizing: border-box;
-            margin: 0;
-            padding: 0;
+            margin: 0; padding: 0;
         }
         
         body {
@@ -47,372 +44,143 @@
         
         /* Sidebar */
         .sidebar {
-            width: 260px;
-            background: var(--sidebar);
-            border-right: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            z-index: 99;
-            transition: transform 0.3s ease;
+            width: 260px; background: var(--sidebar); border-right: 1px solid var(--border);
+            display: flex; flex-direction: column; z-index: 99; transition: transform 0.3s ease;
         }
         
         .sidebar-brand {
-            padding: 24px;
-            font-family: 'Syne', sans-serif;
-            font-weight: 800;
-            font-size: 22px;
-            color: var(--gold-light);
-            border-bottom: 1px solid var(--border);
+            padding: 24px; font-family: 'Syne', sans-serif; font-weight: 800; font-size: 22px;
+            color: var(--gold-light); border-bottom: 1px solid var(--border);
         }
         
         .sidebar-profile {
-            padding: 16px 24px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            border-bottom: 1px solid var(--border);
+            padding: 16px 24px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border);
         }
         
         .avatar {
-            width: 36px;
-            height: 36px;
-            background: var(--gold-dim);
-            border: 1px solid var(--gold);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            color: var(--gold-light);
+            width: 36px; height: 36px; background: var(--gold-dim); border: 1px solid var(--gold);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-weight: bold; color: var(--gold-light);
         }
         
-        .profile-info {
-            overflow: hidden;
-        }
+        .profile-info { overflow: hidden; }
+        .profile-name { font-weight: 500; font-size: 14px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+        .profile-role { font-size: 11px; color: var(--muted); }
         
-        .profile-name {
-            font-weight: 500;
-            font-size: 14px;
-            white-space: nowrap;
-            text-overflow: ellipsis;
-            overflow: hidden;
-        }
-        
-        .profile-role {
-            font-size: 11px;
-            color: var(--muted);
-        }
-        
-        .nav {
-            padding: 24px 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            flex: 1;
-        }
+        .nav { padding: 24px 12px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
         
         .nav-item {
-            background: none;
-            border: none;
-            text-align: left;
-            padding: 12px 16px;
-            border-radius: var(--radius);
-            color: var(--muted);
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            transition: all 0.2s;
+            background: none; border: none; text-align: left; padding: 12px 16px; border-radius: var(--radius);
+            color: var(--muted); font-size: 14px; font-weight: 500; cursor: pointer;
+            display: flex; align-items: center; gap: 12px; transition: all 0.2s;
         }
         
-        .nav-item:hover {
-            background: rgba(255, 255, 255, 0.02);
-            color: var(--text);
-        }
+        .nav-item:hover { background: rgba(255, 255, 255, 0.02); color: var(--text); }
+        .nav-item.active { background: var(--gold-dim); color: var(--gold-light); font-weight: 600; }
         
-        .nav-item.active {
-            background: var(--gold-dim);
-            color: var(--gold-light);
-            font-weight: 600;
-        }
-        
-        .sidebar-footer {
-            padding: 16px;
-            border-top: 1px solid var(--border);
-        }
+        .sidebar-footer { padding: 16px; border-top: 1px solid var(--border); }
         
         .btn-logout {
-            width: 100%;
-            background: none;
-            border: 1px solid var(--border);
-            padding: 10px;
-            border-radius: var(--radius);
-            color: var(--danger);
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
+            width: 100%; background: none; border: 1px solid var(--border); padding: 10px;
+            border-radius: var(--radius); color: var(--danger); font-size: 13px; font-weight: 500;
+            cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
         }
-        
-        .btn-logout:hover {
-            background: rgba(239, 68, 68, 0.05);
-        }
+        .btn-logout:hover { background: rgba(239, 68, 68, 0.05); }
         
         /* Main Content */
-        .main {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            min-width: 0;
-        }
+        .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
         
         .topbar {
-            background: var(--panel);
-            border-bottom: 1px solid var(--border);
-            padding: 16px 32px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
+            background: var(--panel); border-bottom: 1px solid var(--border);
+            padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; gap: 16px;
         }
         
-        .topbar-left h2 {
-            font-family: 'Syne', sans-serif;
-            font-size: 20px;
-            font-weight: 700;
-        }
-        
-        .topbar-left p {
-            font-size: 12px;
-            color: var(--muted);
-            margin-top: 2px;
-        }
+        .topbar-left h2 { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; }
+        .topbar-left p { font-size: 12px; color: var(--muted); margin-top: 2px; }
         
         /* Buttons */
         .btn-primary {
-            background: var(--gold);
-            border: none;
-            padding: 10px 18px;
-            border-radius: var(--radius);
-            color: #000;
-            font-weight: 600;
-            font-size: 13px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: background 0.2s;
+            background: var(--gold); border: none; padding: 10px 18px; border-radius: var(--radius);
+            color: #000; font-weight: 600; font-size: 13px; cursor: pointer;
+            display: flex; align-items: center; gap: 8px; transition: background 0.2s;
         }
-        
-        .btn-primary:hover {
-            background: var(--gold-light);
-        }
+        .btn-primary:hover { background: var(--gold-light); }
         
         .btn-secondary {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid var(--border-2);
-            padding: 10px 18px;
-            border-radius: var(--radius);
-            color: var(--text);
-            font-weight: 500;
-            font-size: 13px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: background 0.2s;
+            background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-2); padding: 10px 18px;
+            border-radius: var(--radius); color: var(--text); font-weight: 500; font-size: 13px;
+            cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s;
         }
-        
-        .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.08);
-        }
+        .btn-secondary:hover { background: rgba(255, 255, 255, 0.08); }
         
         /* Content Views */
-        .content {
-            padding: 32px;
-            flex: 1;
-            overflow-y: auto;
-            position: relative;
-        }
-        
-        .view {
-            display: none;
-        }
-        
-        .view.active {
-            display: block;
-        }
+        .content { padding: 32px; flex: 1; overflow-y: auto; position: relative; }
+        .view { display: none; }
+        .view.active { display: block; }
         
         /* Agenda Controls & Cards */
         .agenda-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 24px;
-            flex-wrap: wrap;
-            gap: 16px;
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 24px; flex-wrap: wrap; gap: 16px;
         }
         
         .date-picker-ctrl {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 4px;
+            display: flex; align-items: center; gap: 8px; background: var(--panel);
+            border: 1px solid var(--border); border-radius: var(--radius); padding: 4px;
         }
         
         .btn-icon {
-            background: none;
-            border: none;
-            color: var(--text);
-            width: 32px;
-            height: 32px;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
+            background: none; border: none; color: var(--text); width: 32px; height: 32px;
+            border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer;
         }
+        .btn-icon:hover { background: rgba(255, 255, 255, 0.05); }
         
-        .btn-icon:hover {
-            background: rgba(255, 255, 255, 0.05);
-        }
-        
-        .current-date-lbl {
-            font-size: 14px;
-            font-weight: 600;
-            padding: 0 12px;
-            min-width: 140px;
-            text-align: center;
-        }
+        .current-date-lbl { font-size: 14px; font-weight: 600; padding: 0 12px; min-width: 140px; text-align: center; }
         
         .filters {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 4px;
+            display: flex; align-items: center; gap: 6px; background: var(--panel);
+            border: 1px solid var(--border); border-radius: var(--radius); padding: 4px;
         }
         
         .status-chip {
-            background: none;
-            border: none;
-            color: var(--muted);
-            padding: 6px 12px;
-            font-size: 12px;
-            font-weight: 500;
-            border-radius: 6px;
-            cursor: pointer;
+            background: none; border: none; color: var(--muted); padding: 6px 12px;
+            font-size: 12px; font-weight: 500; border-radius: 6px; cursor: pointer;
         }
+        .status-chip.active { background: var(--panel-2); color: var(--text); }
         
-        .status-chip.active {
-            background: var(--panel-2);
-            color: var(--text);
-        }
-        
-        .timeline {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            margin-top: 16px;
-        }
+        .timeline { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
         
         .appt-card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 16px;
-            display: grid;
-            grid-template-columns: 100px 1fr auto;
-            align-items: center;
-            gap: 16px;
-            transition: border 0.2s, transform 0.2s;
-            cursor: pointer;
+            background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 16px; display: grid; grid-template-columns: 100px 1fr auto;
+            align-items: center; gap: 16px; transition: border 0.2s, transform 0.2s; cursor: pointer;
         }
-        
-        .appt-card:hover {
-            border-color: var(--border-2);
-            transform: translateY(-1px);
-        }
+        .appt-card:hover { border-color: var(--border-2); transform: translateY(-1px); }
         
         .appt-time {
-            font-family: 'Syne', sans-serif;
-            font-size: 16px;
-            font-weight: 700;
-            color: var(--gold-light);
-            display: flex;
-            align-items: center;
-            gap: 6px;
+            font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700;
+            color: var(--gold-light); display: flex; align-items: center; gap: 6px;
         }
         
-        .appt-info-main {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-        
-        .appt-client-name {
-            font-weight: 600;
-            font-size: 15px;
-        }
-        
-        .appt-service-tag {
-            font-size: 12px;
-            color: var(--muted);
-        }
-        
-        .appt-actions-cell {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
+        .appt-info-main { display: flex; flex-direction: column; gap: 4px; }
+        .appt-client-name { font-weight: 600; font-size: 15px; }
+        .appt-service-tag { font-size: 12px; color: var(--muted); }
+        .appt-actions-cell { display: flex; align-items: center; gap: 8px; }
         
         /* Chips de Horários Livres */
         .free-slot-chip {
-            background: rgba(34, 197, 94, 0.03);
-            border: 1px dashed rgba(34, 197, 94, 0.2);
-            padding: 14px 16px;
-            border-radius: var(--radius);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            font-size: 13px;
-            color: #4ade80;
-            margin-bottom: 4px;
+            background: rgba(34, 197, 94, 0.03); border: 1px dashed rgba(34, 197, 94, 0.2);
+            padding: 14px 16px; border-radius: var(--radius); display: flex; align-items: center;
+            justify-content: space-between; font-size: 13px; color: #4ade80; margin-bottom: 4px;
         }
-        
-        .free-slot-label strong {
-            color: #fff;
-        }
-        
+        .free-slot-label strong { color: #fff; }
         .free-slot-duration {
-            font-size: 11px;
-            color: var(--muted);
-            background: rgba(255, 255, 255, 0.03);
-            padding: 2px 8px;
-            border-radius: 12px;
+            font-size: 11px; color: var(--muted); background: rgba(255, 255, 255, 0.03);
+            padding: 2px 8px; border-radius: 12px;
         }
         
         /* Pills de Status */
-        .pill {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
+        .pill { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
         .pill-pendente { background: rgba(201, 147, 58, 0.1); color: var(--gold-light); border: 1px solid rgba(201, 147, 58, 0.2); }
         .pill-confirmado { background: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.2); }
         .pill-concluido { background: rgba(34, 197, 94, 0.1); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.2); }
@@ -420,67 +188,25 @@
         .pill-bloqueio { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid #ef4444; }
         
         /* Grid de Métricas */
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 16px;
-            margin-bottom: 24px;
-        }
-        
-        .metric-card {
-            background: var(--panel);
-            border: 1px solid var(--border);
-            padding: 18px;
-            border-radius: var(--radius);
-        }
-        
-        .metric-label {
-            font-size: 12px;
-            color: var(--muted);
-            text-transform: uppercase;
-            font-weight: 600;
-        }
-        
-        .metric-value {
-            font-family: 'Syne', sans-serif;
-            font-size: 24px;
-            font-weight: 700;
-            margin-top: 6px;
-        }
+        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .metric-card { background: var(--panel); border: 1px solid var(--border); padding: 18px; border-radius: var(--radius); }
+        .metric-label { font-size: 12px; color: var(--muted); text-transform: uppercase; font-weight: 600; }
+        .metric-value { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 700; margin-top: 6px; }
         
         /* Modais */
         .modal-overlay {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(5, 7, 11, 0.92);
-            backdrop-filter: blur(6px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 999;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s ease;
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(5, 7, 11, 0.92); backdrop-filter: blur(6px);
+            display: flex; align-items: center; justify-content: center; z-index: 999;
+            opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
         }
-        
-        .modal-overlay.open {
-            opacity: 1;
-            pointer-events: auto;
-        }
-        
-        .modal-box {
-            background: var(--panel);
-            border: 1px solid var(--border-2);
-            width: min(100% - 32px, 500px);
-            border-radius: 12px;
-            padding: 28px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
-        }
-        
+        .modal-overlay.open { opacity: 1; pointer-events: auto; }
+        .modal-box { background: var(--panel); border: 1px solid var(--border-2); width: min(100% - 32px, 500px); border-radius: 12px; padding: 28px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); }
         .modal-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; }
         .modal-sub { font-size: 12px; color: var(--muted); margin-top: 4px; margin-bottom: 20px; line-height: 1.5; }
         
         .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+        .field.full { width: 100%; }
         .field label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; }
         .field input, .field select { background: var(--bg); border: 1px solid var(--border); padding: 10px 14px; border-radius: var(--radius); color: var(--text); font-family: inherit; font-size: 14px; }
         .field input:focus, .field select:focus { border-color: var(--gold); outline: none; }
@@ -492,27 +218,23 @@
         .empty-state { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 14px; }
         
         .btn-wpp {
-            background: rgba(34, 197, 94, 0.1);
-            color: #22c55e;
-            border: 1px solid rgba(34, 197, 94, 0.2);
-            padding: 6px;
-            border-radius: 6px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
+            background: rgba(34, 197, 94, 0.1); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.2);
+            padding: 6px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
         }
         .btn-wpp:hover { background: rgba(34, 197, 94, 0.2); }
+        
+        .badge-star { background: rgba(201, 147, 58, 0.2); border: 1px solid var(--gold); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 6px; }
     </style>
 </head>
 
 <body>
+    <!-- Sidebar -->
     <div class="sidebar">
         <div class="sidebar-brand">UaiBarber</div>
         <div class="sidebar-profile">
             <div class="avatar" id="prof-avatar">-</div>
             <div class="profile-info">
-                <div class="profile-name" id="prof-name">A carregar...</div>
+                <div class="profile-name" id="prof-name">Carregando...</div>
                 <div class="profile-role">Profissional</div>
             </div>
         </div>
@@ -526,15 +248,17 @@
         </div>
     </div>
 
+    <!-- Main Content -->
     <div class="main">
         <div class="topbar">
             <div class="topbar-left">
-                <h2>Painel de Controlo</h2>
-                <p>Gere os teus agendamentos em tempo real</p>
+                <h2>Painel de Controle</h2>
+                <p>Gerencie seus atendimentos em tempo real</p>
             </div>
         </div>
 
         <div class="content">
+            <!-- VIEW: AGENDA -->
             <div id="view-agenda" class="view active">
                 <div class="agenda-header">
                     <div class="date-picker-ctrl">
@@ -550,19 +274,43 @@
                     </div>
                 </div>
                 <div class="timeline" id="timeline-container">
-                    </div>
+                    <!-- Gerado Dinamicamente -->
+                </div>
             </div>
 
+            <!-- VIEW: SERVIÇOS -->
             <div id="view-servicos" class="view">
-                <h3 style="margin-bottom: 20px;">Os Teus Serviços</h3>
+                <h3 style="margin-bottom: 20px;">Seus Serviços</h3>
                 <div id="services-container"></div>
             </div>
 
+            <!-- VIEW: RELATÓRIOS -->
             <div id="view-relatorios" class="view">
-                <h3 style="margin-bottom: 20px;">Estatísticas Básicas</h3>
+                <h3 style="margin-bottom: 20px;">Métricas e Desempenho</h3>
+                
+                <!-- MELHORIA: FILTRO DE PERÍODO (CHIPS + INPUTS CUSTOMIZADOS) -->
+                <div class="report-filter-bar" style="margin-bottom: 24px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center;">
+                    <div class="filters" id="report-period-chips">
+                        <button class="status-chip active" data-range="semana">Esta Semana</button>
+                        <button class="status-chip" data-range="mes">Este Mês</button>
+                        <button class="status-chip" data-range="custom">Personalizado</button>
+                    </div>
+                    
+                    <div id="report-custom-dates" style="display: none; align-items: center; gap: 10px;">
+                        <div class="field" style="flex-direction: row; align-items: center; gap: 6px; margin: 0;">
+                            <label style="margin:0; font-size:11px;">De:</label>
+                            <input type="date" id="report-date-start" style="padding: 6px 10px;" />
+                        </div>
+                        <div class="field" style="flex-direction: row; align-items: center; gap: 6px; margin: 0;">
+                            <label style="margin:0; font-size:11px;">Até:</label>
+                            <input type="date" id="report-date-end" style="padding: 6px 10px;" />
+                        </div>
+                    </div>
+                </div>
+
                 <div class="metrics-grid">
                     <div class="metric-card">
-                        <div class="metric-label">Total de Agendamentos</div>
+                        <div class="metric-label">Total de Agendamentos (No Período)</div>
                         <div class="metric-value" id="metric-total">0</div>
                     </div>
                 </div>
@@ -570,15 +318,17 @@
         </div>
     </div>
 
+    <!-- MODAL: ALERTA NOTIFICAÇÃO REALTIME -->
     <div class="modal-overlay" id="modal-alert">
         <div class="modal-box" style="text-align:center;">
             <h3 class="modal-title" style="color:var(--gold-light);">🔔 Novo Agendamento Recebido!</h3>
-            <p class="modal-sub">A Inteligência Artificial acabou de adicionar um cliente na tua agenda.</p>
+            <p class="modal-sub">A Inteligência Artificial acabou de adicionar um cliente na sua agenda.</p>
             <div id="alert-content" style="background:var(--panel-2); padding:16px; border-radius:var(--radius); text-align:left; font-size:14px; border:1px solid var(--border-2); margin-bottom:20px;"></div>
             <button class="btn-primary" id="btn-close-alert" style="margin: 0 auto;">Entendido</button>
         </div>
     </div>
 
+    <!-- MODAL: HISTÓRICO COMPLETO DO CLIENTE -->
     <div class="modal-overlay" id="modal-historico">
         <div class="modal-box">
             <h3 class="modal-title" id="hist-nome-cliente">Nome do Cliente</h3>
@@ -601,7 +351,8 @@
 
             <h4 style="font-size: 12px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px;">Passado do Cliente</h4>
             <div id="hist-lista-agendamentos" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg);">
-                </div>
+                <!-- Injetado dinamicamente -->
+            </div>
 
             <div class="modal-actions">
                 <button class="btn-primary" id="btn-fechar-historico">Fechar Janela</button>
@@ -609,6 +360,27 @@
         </div>
     </div>
 
+    <!-- MELHORIA: MODAL REMARCAR AGENDAMENTO -->
+    <div class="modal-overlay" id="modal-remarcar">
+        <div class="modal-box">
+            <h3 class="modal-title">📅 Remarcar Atendimento</h3>
+            <p class="modal-sub">Selecione a nova data e horário desejados para o cliente.</p>
+            
+            <div class="field full">
+                <label>Nova Data e Horário</label>
+                <input type="datetime-local" id="remarcar-horario" />
+            </div>
+            
+            <div class="feedback" id="remarcar-feedback"></div>
+            
+            <div class="modal-actions">
+                <button class="btn-secondary" id="btn-cancelar-remarcar">Cancelar</button>
+                <button class="btn-primary" id="btn-salvar-remarcar">Confirmar Alteração</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SDK do Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./app.js"></script>
 </body>
