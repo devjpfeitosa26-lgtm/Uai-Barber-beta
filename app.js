@@ -10,7 +10,6 @@ const state = {
   servicos: [],
   agendamentos: [],
   agendamentosAll: [],
-  bloqueios: [],
   currentDate: new Date(),
   filterStatus: 'todos',
   activeView: 'agenda',
@@ -39,45 +38,6 @@ function setFeedback(id, msg, type = '') {
 function isToday(date) {
   const t = new Date();
   return date.getDate() === t.getDate() && date.getMonth() === t.getMonth() && date.getFullYear() === t.getFullYear();
-}
-
-
-function getServiceById(id) {
-  return state.servicos.find(s => s.id === id);
-}
-
-function addMinutes(dateLike, minutes) {
-  return new Date(new Date(dateLike).getTime() + minutes * 60000);
-}
-
-function rangesOverlap(startA, endA, startB, endB) {
-  return new Date(startA) < new Date(endB) && new Date(endA) > new Date(startB);
-}
-
-function formatPeriod(start, end) {
-  const sameDay = fmt.isoDate(new Date(start)) === fmt.isoDate(new Date(end));
-  if (sameDay) return `${fmt.time(start)} até ${fmt.time(end)}`;
-  return `${fmt.dateShort(new Date(start))} ${fmt.time(start)} → ${fmt.dateShort(new Date(end))} ${fmt.time(end)}`;
-}
-
-function blockTypeLabel(type) {
-  return {
-    almoco: 'Almoço',
-    ferias: 'Férias',
-    folga: 'Folga',
-    pausa: 'Pausa',
-    personalizado: 'Bloqueio',
-  }[type] || 'Bloqueio';
-}
-
-function blockTypeDefaultTitle(type) {
-  return {
-    almoco: 'Horário de almoço',
-    ferias: 'Férias',
-    folga: 'Dia de folga',
-    pausa: 'Pausa na agenda',
-    personalizado: 'Horário indisponível',
-  }[type] || 'Horário indisponível';
 }
 
 /* ────── SUBSCRIPTION (MOCK) ────── */
@@ -272,31 +232,18 @@ async function loadAgenda(date) {
   const start = new Date(date); start.setHours(0, 0, 0, 0);
   const end   = new Date(date); end.setHours(23, 59, 59, 999);
 
-  const [apptRes, blockRes] = await Promise.all([
-    sb
-      .from('agendamentos')
-      .select('id, nome_cliente, whatsapp_cliente, horario_inicio, status, servico_id, servicos(nome, preco, duracao_minutos)')
-      .eq('prof_id', state.user.id)
-      .gte('horario_inicio', start.toISOString())
-      .lte('horario_inicio', end.toISOString())
-      .order('horario_inicio', { ascending: true }),
-    sb
-      .from('bloqueios_agenda')
-      .select('id, titulo, tipo, inicio, fim, observacao')
-      .eq('prof_id', state.user.id)
-      .lt('inicio', end.toISOString())
-      .gt('fim', start.toISOString())
-      .order('inicio', { ascending: true }),
-  ]);
+  const { data, error } = await sb
+    .from('agendamentos')
+    .select('id, nome_cliente, whatsapp_cliente, horario_inicio, status, servico_id, servicos(nome, preco, duracao_minutos)')
+    .eq('prof_id', state.user.id)
+    .gte('horario_inicio', start.toISOString())
+    .lte('horario_inicio', end.toISOString())
+    .order('horario_inicio', { ascending: true });
 
-  if (apptRes.error) throw new Error(apptRes.error.message);
-  if (blockRes.error) throw new Error(blockRes.error.message);
-
-  state.agendamentos = apptRes.data || [];
-  state.bloqueios = blockRes.data || [];
+  if (error) throw new Error(error.message);
+  state.agendamentos = data || [];
   renderTimeline();
   renderDaySummary();
-  renderBlockedList();
   updateBadge();
 }
 
@@ -326,48 +273,18 @@ function renderTimeline() {
   const tl = $('timeline');
   const filtered = state.agendamentos.filter(apptMatchesFilter);
 
-  const items = [
-    ...state.bloqueios.map(item => ({ kind: 'bloqueio', start: item.inicio, raw: item })),
-    ...filtered.map(item => ({ kind: 'agendamento', start: item.horario_inicio, raw: item })),
-  ].sort((a, b) => new Date(a.start) - new Date(b.start));
+  $('agenda-count').textContent = `${filtered.length} agendamento${filtered.length !== 1 ? 's' : ''}`;
 
-  $('agenda-count').textContent = `${filtered.length} agendamento${filtered.length !== 1 ? 's' : ''} • ${state.bloqueios.length} bloqueio${state.bloqueios.length !== 1 ? 's' : ''}`;
-
-  if (!items.length) {
+  if (!filtered.length) {
     tl.innerHTML = `
       <div class="empty-state">
         <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        <p>${state.filterStatus !== 'todos' ? 'Nenhum agendamento com esse filtro e nenhum bloqueio ativo nesse dia.' : isToday(state.currentDate) ? 'Nenhum agendamento ou bloqueio para hoje.<br>Use os botões <strong>Novo agendamento</strong> ou <strong>Bloquear horário</strong>.' : 'Nenhum agendamento ou bloqueio nesse dia.'}</p>
+        <p>${state.filterStatus !== 'todos' ? 'Nenhum agendamento com esse filtro.' : isToday(state.currentDate) ? 'Nenhum agendamento para hoje.<br>Use o botão <strong>Novo agendamento</strong> para criar um.' : 'Nenhum agendamento nesse dia.'}</p>
       </div>`;
     return;
   }
 
-  tl.innerHTML = items.map(entry => {
-    if (entry.kind === 'bloqueio') {
-      const item = entry.raw;
-      return `
-      <div class="appt-card blocked" data-block-id="${item.id}">
-        <div>
-          <div class="appt-time">${fmt.time(item.inicio)}</div>
-          <div class="appt-time-end">até ${fmt.time(item.fim)}</div>
-        </div>
-        <div>
-          <div class="appt-client">${item.titulo}</div>
-          <div class="appt-service">${blockTypeLabel(item.tipo)}</div>
-          ${item.observacao ? `<div class="block-note">${item.observacao}</div>` : ''}
-        </div>
-        <div class="appt-right">
-          <span class="block-pill">${blockTypeLabel(item.tipo)}</span>
-          <div class="appt-actions">
-            <button class="btn-icon cancel" data-action="delete-block" data-id="${item.id}" title="Remover bloqueio">
-              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-          </div>
-        </div>
-      </div>`;
-    }
-
-    const item = entry.raw;
+  tl.innerHTML = filtered.map(item => {
     const endTime = item.servicos?.duracao_minutos
       ? new Date(new Date(item.horario_inicio).getTime() + item.servicos.duracao_minutos * 60000)
       : null;
@@ -411,7 +328,6 @@ function renderTimeline() {
       if (btn.dataset.action === 'complete') updateApptStatus(btn.dataset.id, 'concluido');
       if (btn.dataset.action === 'cancel')   updateApptStatus(btn.dataset.id, 'cancelado');
       if (btn.dataset.action === 'alert')    openAlertModal(btn.dataset.id);
-      if (btn.dataset.action === 'delete-block') deleteBlock(btn.dataset.id);
     });
   });
 }
@@ -419,7 +335,6 @@ function renderTimeline() {
 function renderDaySummary() {
   const active = state.agendamentos.filter(a => a.status !== 'cancelado');
   const fat = active.reduce((acc, a) => acc + Number(a.servicos?.preco || 0), 0);
-  const blockedMinutes = state.bloqueios.reduce((acc, item) => acc + Math.max(0, (new Date(item.fim) - new Date(item.inicio)) / 60000), 0);
 
   $('side-faturamento').textContent = fmt.brl(fat);
   $('side-faturamento-sub').textContent = `${active.length} atendimento${active.length !== 1 ? 's' : ''}`;
@@ -433,31 +348,11 @@ function renderDaySummary() {
     { label: 'Pendentes',   key: 'pendente',   color: 'var(--warning)' },
     { label: 'Concluídos',  key: 'concluido',  color: 'var(--info)' },
     { label: 'Cancelados',  key: 'cancelado',  color: 'var(--danger)' },
-    { label: 'Bloqueios',   value: state.bloqueios.length, color: 'var(--warning)' },
-    { label: 'Horas bloqueadas', value: `${(blockedMinutes / 60).toFixed(blockedMinutes % 60 === 0 ? 0 : 1)}h`, color: 'var(--gold-light)' },
   ].map(r => `
     <div class="slot-row">
       <span class="slot-time">${r.label}</span>
-      <span style="font-size:14px;font-weight:700;color:${r.color}">${r.value ?? counts[r.key]}</span>
+      <span style="font-size:14px;font-weight:700;color:${r.color}">${counts[r.key]}</span>
     </div>`).join('');
-}
-
-function renderBlockedList() {
-  const list = $('blocked-slots-list');
-  if (!list) return;
-
-  if (!state.bloqueios.length) {
-    list.innerHTML = '<div class="block-summary-empty">Nenhum bloqueio cadastrado para este dia.</div>';
-    return;
-  }
-
-  list.innerHTML = state.bloqueios.map(item => `
-    <div class="block-mini">
-      <div class="block-mini-title">${item.titulo}</div>
-      <div class="block-mini-time">${formatPeriod(item.inicio, item.fim)}</div>
-      <div class="block-mini-time">${blockTypeLabel(item.tipo)}</div>
-    </div>
-  `).join('');
 }
 
 function renderOverview() {
@@ -530,47 +425,21 @@ async function saveAppointment() {
     setFeedback('m-feedback', 'Preencha todos os campos.', 'error'); return;
   }
 
-  const service = getServiceById(servId);
-  if (!service) {
-    setFeedback('m-feedback', 'Selecione um serviço válido.', 'error'); return;
-  }
-
   $('save-appt-btn').disabled = true;
   setFeedback('m-feedback', 'Salvando...');
 
   const horario_inicio = new Date(`${data}T${hora}:00`).toISOString();
-  const horario_fim = addMinutes(horario_inicio, Number(service.duracao_minutos || 0)).toISOString();
 
-  const [conflictRes, blockRes] = await Promise.all([
-    sb
-      .from('agendamentos')
-      .select('id, horario_inicio, servicos(duracao_minutos)')
-      .eq('prof_id', state.user.id)
-      .in('status', ['pendente', 'confirmado'])
-      .gte('horario_inicio', new Date(`${data}T00:00:00`).toISOString())
-      .lte('horario_inicio', new Date(`${data}T23:59:59`).toISOString()),
-    sb
-      .from('bloqueios_agenda')
-      .select('id, titulo, tipo, inicio, fim')
-      .eq('prof_id', state.user.id)
-      .lt('inicio', horario_fim)
-      .gt('fim', horario_inicio)
-      .limit(1),
-  ]);
+  const { data: conflict } = await sb
+    .from('agendamentos')
+    .select('id')
+    .eq('prof_id', state.user.id)
+    .eq('horario_inicio', horario_inicio)
+    .in('status', ['pendente', 'confirmado'])
+    .limit(1);
 
-  const overlappingAppt = (conflictRes.data || []).find(item => {
-    const itemEnd = addMinutes(item.horario_inicio, Number(item.servicos?.duracao_minutos || 0));
-    return rangesOverlap(horario_inicio, horario_fim, item.horario_inicio, itemEnd);
-  });
-
-  if (overlappingAppt) {
-    setFeedback('m-feedback', 'Já existe um agendamento ativo nesse intervalo.', 'error');
-    $('save-appt-btn').disabled = false; return;
-  }
-
-  if (blockRes.data?.length) {
-    const block = blockRes.data[0];
-    setFeedback('m-feedback', `Esse horário está bloqueado: ${block.titulo}.`, 'error');
+  if (conflict?.length) {
+    setFeedback('m-feedback', 'Já existe um agendamento neste horário.', 'error');
     $('save-appt-btn').disabled = false; return;
   }
 
@@ -752,133 +621,13 @@ function closeServiceModal() {
   $('save-service-btn').disabled = false;
 }
 
-function syncBlockTitle(force = false) {
-  const title = $('b-titulo');
-  if (!title) return;
-  if (force || title.dataset.auto === 'true' || !title.value.trim()) {
-    title.value = blockTypeDefaultTitle($('b-tipo').value);
-    title.dataset.auto = 'true';
-  }
-}
-
-function openBlockModal() {
-  const selectedDate = fmt.isoDate(state.currentDate || new Date());
-  $('b-tipo').value = 'almoco';
-  $('b-data-inicio').value = selectedDate;
-  $('b-hora-inicio').value = '12:00';
-  $('b-data-fim').value = selectedDate;
-  $('b-hora-fim').value = '13:00';
-  $('b-observacao').value = '';
-  $('b-titulo').value = '';
-  $('b-titulo').dataset.auto = 'true';
-  syncBlockTitle(true);
-  setFeedback('b-feedback', '');
-  $('modal-bloqueio').classList.add('open');
-}
-
-function closeBlockModal() {
-  $('modal-bloqueio').classList.remove('open');
-  $('save-block-btn').disabled = false;
-}
-
-async function saveBlock() {
-  const tipo = $('b-tipo').value;
-  const titulo = $('b-titulo').value.trim() || blockTypeDefaultTitle(tipo);
-  const dataInicio = $('b-data-inicio').value;
-  const horaInicio = $('b-hora-inicio').value;
-  const dataFim = $('b-data-fim').value;
-  const horaFim = $('b-hora-fim').value;
-  const observacao = $('b-observacao').value.trim();
-
-  if (!tipo || !dataInicio || !horaInicio || !dataFim || !horaFim) {
-    setFeedback('b-feedback', 'Preencha início e fim do bloqueio.', 'error'); return;
-  }
-
-  const inicio = new Date(`${dataInicio}T${horaInicio}:00`);
-  const fim = new Date(`${dataFim}T${horaFim}:00`);
-  if (!(inicio < fim)) {
-    setFeedback('b-feedback', 'A data final precisa ser maior que a inicial.', 'error'); return;
-  }
-
-  $('save-block-btn').disabled = true;
-  setFeedback('b-feedback', 'Salvando bloqueio...');
-
-  const [apptRes, blockRes] = await Promise.all([
-    sb
-      .from('agendamentos')
-      .select('id, nome_cliente, horario_inicio, servicos(duracao_minutos)')
-      .eq('prof_id', state.user.id)
-      .in('status', ['pendente', 'confirmado'])
-      .lt('horario_inicio', fim.toISOString())
-      .gte('horario_inicio', new Date(inicio.getTime() - 24 * 60 * 60000).toISOString()),
-    sb
-      .from('bloqueios_agenda')
-      .select('id, titulo')
-      .eq('prof_id', state.user.id)
-      .lt('inicio', fim.toISOString())
-      .gt('fim', inicio.toISOString())
-      .limit(1),
-  ]);
-
-  const overlappingAppt = (apptRes.data || []).find(item => {
-    const itemEnd = addMinutes(item.horario_inicio, Number(item.servicos?.duracao_minutos || 0));
-    return rangesOverlap(inicio, fim, item.horario_inicio, itemEnd);
-  });
-
-  if (overlappingAppt) {
-    setFeedback('b-feedback', `Já existe um agendamento ativo nesse período: ${overlappingAppt.nome_cliente}.`, 'error');
-    $('save-block-btn').disabled = false;
-    return;
-  }
-
-  if (blockRes.data?.length) {
-    setFeedback('b-feedback', `Já existe um bloqueio sobreposto: ${blockRes.data[0].titulo}.`, 'error');
-    $('save-block-btn').disabled = false;
-    return;
-  }
-
-  const { error } = await sb.from('bloqueios_agenda').insert({
-    prof_id: state.user.id,
-    titulo,
-    tipo,
-    inicio: inicio.toISOString(),
-    fim: fim.toISOString(),
-    observacao: observacao || null,
-  });
-
-  if (error) {
-    setFeedback('b-feedback', error.message, 'error');
-    $('save-block-btn').disabled = false;
-    return;
-  }
-
-  setFeedback('b-feedback', 'Bloqueio salvo com sucesso!', 'success');
-  state.currentDate = new Date(inicio);
-  updateDateLabel();
-  await loadAgenda(state.currentDate);
-  setTimeout(closeBlockModal, 500);
-}
-
-async function deleteBlock(id) {
-  if (!confirm('Remover este bloqueio da agenda?')) return;
-  await sb.from('bloqueios_agenda').delete().eq('id', id);
-  await loadAgenda(state.currentDate);
-}
-
 /* ────── REALTIME ────── */
 function startRealtime() {
   if (state.realtimeChannel) sb.removeChannel(state.realtimeChannel);
   state.realtimeChannel = sb
-    .channel('agenda-live-' + state.user.id)
+    .channel('agendamentos-' + state.user.id)
     .on('postgres_changes', {
       event: '*', schema: 'public', table: 'agendamentos',
-      filter: `prof_id=eq.${state.user.id}`
-    }, async () => {
-      await loadAgenda(state.currentDate);
-      if (state.activeView === 'overview') await loadMonthAgenda();
-    })
-    .on('postgres_changes', {
-      event: '*', schema: 'public', table: 'bloqueios_agenda',
       filter: `prof_id=eq.${state.user.id}`
     }, async () => {
       await loadAgenda(state.currentDate);
@@ -925,13 +674,6 @@ function bindEvents() {
   $('close-modal-btn').addEventListener('click', closeApptModal);
   $('save-appt-btn').addEventListener('click', saveAppointment);
   $('modal-agendamento').addEventListener('click', e => { if (e.target === $('modal-agendamento')) closeApptModal(); });
-
-  $('open-block-modal-btn').addEventListener('click', openBlockModal);
-  $('close-block-modal-btn').addEventListener('click', closeBlockModal);
-  $('save-block-btn').addEventListener('click', saveBlock);
-  $('modal-bloqueio').addEventListener('click', e => { if (e.target === $('modal-bloqueio')) closeBlockModal(); });
-  $('b-tipo').addEventListener('change', () => syncBlockTitle(true));
-  $('b-titulo').addEventListener('input', () => { $('b-titulo').dataset.auto = 'false'; });
 
   $('open-service-modal-btn').addEventListener('click', openServiceModal);
   $('close-service-modal-btn').addEventListener('click', closeServiceModal);
