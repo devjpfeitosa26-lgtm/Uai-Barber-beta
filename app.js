@@ -16,7 +16,12 @@ const state = {
   activeView: 'agenda',
   realtimeChannel: null,
   alertAppt: null,
-  charts: { faturamento: null, servicos: null }
+  charts: { faturamento: null, servicos: null },
+  onboarding: {
+    etapaAtual: 1,
+    nomeTemp: '',
+    servicoCriadoId: null
+  }
 };
 
 /* ────── HELPERS ────── */
@@ -51,7 +56,7 @@ async function loadServicos() {
   if (!error && data) {
     state.servicos = data;
     renderServicos();
-    
+
     const select = $('appt-servico');
     if (select) {
       select.innerHTML = data.map(s => `<option value="${s.id}">${s.nome} (${fmt.brl(s.preco)})</option>`).join('');
@@ -194,7 +199,7 @@ async function abrirHistoricoCliente(whatsapp, nome) {
 async function salvarBloqueio() {
   const titulo = $('bloqueio-titulo').value.trim();
   const inicio = $('bloqueio-inicio').value;
-  const fim = $('bloqueio-fim').value;
+  const fim    = $('bloqueio-fim').value;
 
   if (!titulo || !inicio || !fim) {
     setFeedback('bloqueio-feedback', 'Por favor, preencha todos os campos.', 'error');
@@ -309,10 +314,10 @@ async function renderizarRelatoriosVisuais() {
   });
 }
 
-/* ────── CRIAÇÃO DE SERVIÇOS (CORRIGIDO) ────── */
+/* ────── CRIAÇÃO DE SERVIÇOS ────── */
 async function salvarServico() {
-  const nome = $('service-nome').value.trim();
-  const preco = $('service-preco').value;
+  const nome    = $('service-nome').value.trim();
+  const preco   = $('service-preco').value;
   const duracao = $('service-duracao').value;
 
   if (!nome || !preco || !duracao) {
@@ -332,10 +337,9 @@ async function salvarServico() {
   } else {
     setFeedback('service-feedback', 'Serviço cadastrado com sucesso!', 'success');
     $('service-nome').value = ''; $('service-preco').value = ''; $('service-duracao').value = '';
-    
     setTimeout(async () => {
       $('modal-service').classList.remove('open');
-      await loadServicos(); // Atualiza a lista na tela e no select
+      await loadServicos();
     }, 1000);
   }
 }
@@ -371,10 +375,10 @@ async function alterarStatus(id, novoStatus, event) {
 }
 
 async function criarAgendamentoManual() {
-  const nome = $('appt-nome').value.trim();
-  const whatsapp = $('appt-whatsapp').value.trim();
+  const nome      = $('appt-nome').value.trim();
+  const whatsapp  = $('appt-whatsapp').value.trim();
   const servicoId = $('appt-servico').value;
-  const horario = $('appt-horario').value;
+  const horario   = $('appt-horario').value;
 
   if (!nome || !whatsapp || !servicoId || !horario) {
     setFeedback('appt-feedback', 'Preencha todos os dados.', 'error'); return;
@@ -397,13 +401,200 @@ async function criarAgendamentoManual() {
   }
 }
 
+/* ══════════════════════════════════════════════════════════════
+   ────── ONBOARDING GUIADO ──────────────────────────────────
+   Ativado automaticamente no 1º acesso (sem serviços cadastrados)
+   e manualmente via botão "?" a qualquer momento.
+   ══════════════════════════════════════════════════════════════ */
+
+/**
+ * Gera o link do bot personalizado para o barbeiro.
+ * O slug é baseado no ID do usuário (primeiros 8 chars) para garantir unicidade.
+ */
+function gerarLinkBot(userId) {
+  const slug = userId.replace(/-/g, '').substring(0, 10);
+  return `https://uaibarber.app/bot/${slug}`;
+}
+
+/**
+ * Controla qual etapa do onboarding está visível.
+ * Esconde todas as slides e exibe apenas a etapa desejada.
+ */
+function irParaEtapaOnb(etapa) {
+  state.onboarding.etapaAtual = etapa;
+
+  // Esconde todas as etapas
+  document.querySelectorAll('.onb-slide').forEach(el => {
+    el.style.display = 'none';
+  });
+
+  // Exibe a etapa alvo
+  const alvo = $(`onb-step-${etapa}`);
+  if (alvo) alvo.style.display = 'block';
+}
+
+/**
+ * Abre o modal de onboarding.
+ * Sempre inicia do Passo 1 e limpa os campos para permitir revisão.
+ */
+function abrirOnboarding() {
+  // Pré-preenche o campo de nome se o barbeiro já tem cadastro (revisita)
+  if (state.profissional?.nome) {
+    $('onb-input-nome').value = state.profissional.nome;
+  } else {
+    $('onb-input-nome').value = '';
+  }
+
+  // Limpa os campos de serviço e feedbacks
+  $('onb-input-servnome').value    = '';
+  $('onb-input-servpreco').value   = '';
+  $('onb-input-servduracao').value = '';
+
+  ['onb-feedback-1', 'onb-feedback-2', 'onb-feedback-3'].forEach(id => {
+    setFeedback(id, '', '');
+  });
+
+  // Vai para o passo 1 e abre o modal
+  irParaEtapaOnb(1);
+  $('modal-onboarding').classList.add('open');
+}
+
+/**
+ * PASSO 1 — Salva o nome comercial do barbeiro.
+ * Faz upsert na tabela `profissionais` e avança para o passo 2.
+ */
+async function onbSalvarNome() {
+  const nome = $('onb-input-nome').value.trim();
+  if (!nome) {
+    setFeedback('onb-feedback-1', 'Por favor, informe o nome da barbearia.', 'error');
+    return;
+  }
+
+  const btn = $('onb-btn-proximo-1');
+  btn.textContent = 'Salvando...';
+  btn.disabled = true;
+
+  // Upsert: cria ou atualiza o registro do profissional
+  const { error } = await sb.from('profissionais').upsert({
+    id: state.user.id,
+    nome: nome
+  }, { onConflict: 'id' });
+
+  btn.textContent = 'Avançar: Configurar Catálogo →';
+  btn.disabled = false;
+
+  if (error) {
+    setFeedback('onb-feedback-1', 'Erro ao salvar: ' + error.message, 'error');
+    return;
+  }
+
+  // Atualiza estado e exibição do sidebar imediatamente
+  state.onboarding.nomeTemp = nome;
+  $('prof-name').textContent = nome;
+  $('prof-avatar').textContent = nome.charAt(0).toUpperCase();
+  await loadProfissional();
+
+  irParaEtapaOnb(2);
+}
+
+/**
+ * PASSO 2 — Cria o primeiro serviço do catálogo.
+ * Se já existem serviços, pula direto para o passo 3 sem obrigar novo cadastro.
+ */
+async function onbSalvarServico() {
+  const nome    = $('onb-input-servnome').value.trim();
+  const preco   = $('onb-input-servpreco').value;
+  const duracao = $('onb-input-servduracao').value;
+
+  // Se já existem serviços E os campos estão vazios, permite pular
+  if (state.servicos.length > 0 && !nome && !preco && !duracao) {
+    irParaEtapaOnb(3);
+    $('onb-input-linkbot').value = gerarLinkBot(state.user.id);
+    return;
+  }
+
+  if (!nome || !preco || !duracao) {
+    setFeedback('onb-feedback-2', 'Preencha todos os campos para cadastrar o serviço.', 'error');
+    return;
+  }
+
+  const btn = $('onb-btn-proximo-2');
+  btn.textContent = 'Salvando...';
+  btn.disabled = true;
+
+  const { error } = await sb.from('servicos').insert({
+    prof_id: state.user.id,
+    nome: nome,
+    preco: parseFloat(preco),
+    duracao_minutos: parseInt(duracao)
+  });
+
+  btn.textContent = 'Salvar e Obter Link do Bot →';
+  btn.disabled = false;
+
+  if (error) {
+    setFeedback('onb-feedback-2', 'Erro ao salvar: ' + error.message, 'error');
+    return;
+  }
+
+  // Atualiza lista de serviços em segundo plano
+  await loadServicos();
+
+  // Passo 3: exibe o link personalizado do bot
+  $('onb-input-linkbot').value = gerarLinkBot(state.user.id);
+  irParaEtapaOnb(3);
+}
+
+/**
+ * PASSO 3 — Copia o link do bot para a área de transferência.
+ */
+async function onbCopiarLink() {
+  const link = $('onb-input-linkbot').value;
+  try {
+    await navigator.clipboard.writeText(link);
+    setFeedback('onb-feedback-3', '✔ Link copiado! Cole no seu Instagram ou WhatsApp.', 'success');
+    $('onb-btn-copiar').textContent = '✔ Copiado';
+    setTimeout(() => { $('onb-btn-copiar').textContent = 'Copiar'; }, 2500);
+  } catch {
+    // Fallback para navegadores sem suporte à Clipboard API
+    $('onb-input-linkbot').select();
+    document.execCommand('copy');
+    setFeedback('onb-feedback-3', '✔ Link copiado com sucesso!', 'success');
+  }
+}
+
+/**
+ * PASSO 3 — Finaliza o onboarding e fecha o modal.
+ * Marca no localStorage que o onboarding foi concluído ao menos uma vez,
+ * para que nas próximas sessões o modal não abra automaticamente.
+ */
+function onbFinalizar() {
+  localStorage.setItem(`uaibarber_onb_done_${state.user.id}`, '1');
+  $('modal-onboarding').classList.remove('open');
+  loadAgenda(state.currentDate);
+}
+
+/**
+ * Verifica se o onboarding deve ser exibido automaticamente.
+ * Critérios: nunca foi concluído OU o barbeiro não tem nenhum serviço cadastrado.
+ */
+function verificarOnboarding() {
+  const jaFezOnboarding = localStorage.getItem(`uaibarber_onb_done_${state.user.id}`);
+  const semServicos = state.servicos.length === 0;
+
+  if (!jaFezOnboarding || semServicos) {
+    // Pequeno delay para o painel carregar antes de exibir o modal
+    setTimeout(abrirOnboarding, 400);
+  }
+}
+
 /* ────── EVENT BINDINGS (OUVINTES DE INTERAÇÃO) ────── */
 function updateDateLabel() {
   $('current-date-lbl').textContent = state.currentDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function bindEvents() {
-  // Controle de Abas do Menu Lateral
+  // ── Controle de Abas do Menu Lateral ──
   document.querySelectorAll('.nav-item').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
@@ -413,20 +604,20 @@ function bindEvents() {
       const target = btn.dataset.target;
       if ($(target)) $(target).classList.add('active');
 
-      if (target === 'view-agenda') { $('topbar-title').textContent = 'Agenda'; $('topbar-subtitle').textContent = 'Gerencie horários e atendimentos do dia'; }
+      if (target === 'view-agenda')     { $('topbar-title').textContent = 'Agenda';     $('topbar-subtitle').textContent = 'Gerencie horários e atendimentos do dia'; }
       if (target === 'view-relatorios') { $('topbar-title').textContent = 'Relatórios'; $('topbar-subtitle').textContent = 'Análise de performance e ticket médio'; renderizarRelatoriosVisuais(); }
-      if (target === 'view-servicos') { $('topbar-title').textContent = 'Serviços'; $('topbar-subtitle').textContent = 'Configure o menu e catálogo da barbearia'; }
+      if (target === 'view-servicos')   { $('topbar-title').textContent = 'Serviços';   $('topbar-subtitle').textContent = 'Configure o menu e catálogo da barbearia'; }
       if (target === 'view-assinatura') { $('topbar-title').textContent = 'Assinatura'; $('topbar-subtitle').textContent = 'Faturamento e licença do ecossistema'; }
-      
+
       closeSidebar();
     });
   });
 
-  // Navegação de datas
+  // ── Navegação de datas ──
   $('btn-prev-day').addEventListener('click', () => { state.currentDate.setDate(state.currentDate.getDate() - 1); updateDateLabel(); loadAgenda(state.currentDate); });
   $('btn-next-day').addEventListener('click', () => { state.currentDate.setDate(state.currentDate.getDate() + 1); updateDateLabel(); loadAgenda(state.currentDate); });
 
-  // Mapeamento dos Modais (Inclusão e Correção do fluxo de Serviços)
+  // ── Modais Principais ──
   $('btn-open-bloqueio').addEventListener('click', () => { $('bloqueio-feedback').className = 'feedback'; $('modal-bloqueio').classList.add('open'); });
   $('btn-cancelar-bloqueio').addEventListener('click', () => $('modal-bloqueio').classList.remove('open'));
   $('btn-salvar-bloqueio').addEventListener('click', salvarBloqueio);
@@ -436,12 +627,11 @@ function bindEvents() {
   $('btn-cancelar-appt').addEventListener('click', () => $('modal-appt').classList.remove('open'));
   $('btn-salvar-appt').addEventListener('click', criarAgendamentoManual);
 
-  // GATILHOS CORRIGIDOS PARA O MODAL DE SERVIÇOS
   $('btn-add-service').addEventListener('click', () => { $('service-feedback').className = 'feedback'; $('modal-service').classList.add('open'); });
   $('btn-cancelar-service').addEventListener('click', () => $('modal-service').classList.remove('open'));
   $('btn-salvar-service').addEventListener('click', salvarServico);
 
-  // Filtros de status da Timeline
+  // ── Filtros de status da Timeline ──
   $('status-filter').querySelectorAll('.status-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       $('status-filter').querySelectorAll('.status-chip').forEach(c => c.classList.remove('active'));
@@ -455,9 +645,52 @@ function bindEvents() {
   $('logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); window.location.replace('./index.html'); });
   $('btn-close-alert').addEventListener('click', () => $('modal-alert').classList.remove('open'));
 
-  // Mobile Menu
+  // ── Mobile Menu ──
   $('mobile-menu-btn').addEventListener('click', () => { $('sidebar').classList.add('open'); $('sidebar-overlay').style.display = 'block'; });
   $('sidebar-overlay').addEventListener('click', closeSidebar);
+
+  // ── Assinatura ──
+  $('btn-renew-sub')?.addEventListener('click', () => {
+    window.open('https://wa.me/?text=Olá! Gostaria de renovar minha assinatura UaiBarber.', '_blank');
+  });
+
+  // ══════════════════════════════════════════
+  // ── ONBOARDING: Bindings dos passos ──────
+  // ══════════════════════════════════════════
+
+  // Passo 1 → 2: Salvar nome da barbearia
+  $('onb-btn-proximo-1').addEventListener('click', onbSalvarNome);
+
+  // Passo 1: tecla Enter avança
+  $('onb-input-nome').addEventListener('keydown', e => {
+    if (e.key === 'Enter') onbSalvarNome();
+  });
+
+  // Passo 2 → 3: Salvar primeiro serviço
+  $('onb-btn-proximo-2').addEventListener('click', onbSalvarServico);
+
+  // Passo 3: Copiar link do bot
+  $('onb-btn-copiar').addEventListener('click', onbCopiarLink);
+
+  // Passo 3: Finalizar onboarding
+  $('onb-btn-finalizar').addEventListener('click', onbFinalizar);
+
+  // Botão "?" flutuante — reabre o tutorial a qualquer momento
+  $('btn-help-tutorial').addEventListener('click', () => {
+    abrirOnboarding();
+  });
+
+  // Fechar onboarding clicando fora (apenas no overlay, não no box)
+  $('modal-onboarding').addEventListener('click', e => {
+    // Só fecha se clicar no fundo escuro, não no conteúdo do modal
+    if (e.target === $('modal-onboarding')) {
+      // Se for onboarding obrigatório (sem serviços), não deixa fechar
+      const semServicos = state.servicos.length === 0;
+      if (!semServicos) {
+        $('modal-onboarding').classList.remove('open');
+      }
+    }
+  });
 }
 
 function closeSidebar() { $('sidebar').classList.remove('open'); $('sidebar-overlay').style.display = 'none'; }
@@ -494,6 +727,11 @@ async function init() {
     await loadServicos();
     await loadAgenda(state.currentDate);
     startRealtime();
+
+    // ── Verifica se deve iniciar o onboarding automaticamente ──
+    // Executa após tudo carregar para ter os dados de serviços disponíveis
+    verificarOnboarding();
+
   } catch (e) {
     console.error('Erro na inicialização do painel:', e);
   }
