@@ -461,7 +461,7 @@ function abrirOnboarding() {
 
 /**
  * PASSO 1 — Salva o nome comercial do barbeiro.
- * Faz upsert na tabela `profissionais` e avança para o passo 2.
+ * Atualiza o nome na tabela `profissionais` e avança para o passo 2.
  */
 async function onbSalvarNome() {
   const nome = $('onb-input-nome').value.trim();
@@ -474,11 +474,12 @@ async function onbSalvarNome() {
   btn.textContent = 'Salvando...';
   btn.disabled = true;
 
-  // Upsert: cria ou atualiza o registro do profissional
-  const { error } = await sb.from('profissionais').upsert({
-    id: state.user.id,
-    nome: nome
-  }, { onConflict: 'id' });
+  // UPDATE apenas — o trigger on_auth_user_created já garante que a linha existe.
+  // Upsert/insert quebraria o RLS pois não há política de INSERT em profissionais.
+  const { error } = await sb
+    .from('profissionais')
+    .update({ nome: nome })
+    .eq('id', state.user.id);
 
   btn.textContent = 'Avançar: Configurar Catálogo →';
   btn.disabled = false;
