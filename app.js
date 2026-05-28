@@ -622,22 +622,22 @@ const TOUR_PASSOS = [
     posicao: 'right'
   },
   {
-    selector: '.date-picker-ctrl',
+    selector: '.agenda-header',
     titulo: '📆 Navegação de Datas',
-    texto: 'Use as setas para avançar ou voltar entre os dias. Você pode consultar a agenda de qualquer data, passada ou futura.',
+    texto: 'Use as setas para avançar ou voltar entre os dias e consultar a agenda de qualquer data. Os filtros ao lado deixam você ver só os agendamentos confirmados, concluídos ou cancelados.',
     posicao: 'bottom'
   },
   {
     selector: '#btn-new-appt',
     titulo: '➕ Novo Agendamento',
     texto: 'Clique aqui para cadastrar um agendamento manual — para clientes que ligam, mandam mensagem ou aparecem pessoalmente. Basta preencher nome, WhatsApp, serviço e horário.',
-    posicao: 'bottom'
+    posicao: 'left'
   },
   {
     selector: '#btn-open-bloqueio',
     titulo: '🔒 Bloquear Horário',
     texto: 'Precisa de uma pausa? Bloqueie faixas de horário para almoço, folga ou férias. O robô de agendamento não vai marcar nenhum cliente nesse intervalo.',
-    posicao: 'bottom'
+    posicao: 'left'
   },
   {
     selector: '#status-filter',
