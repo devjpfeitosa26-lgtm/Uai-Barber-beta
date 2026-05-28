@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Barbearia Premium | Dashboard</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <main class="page-shell">
+    <section class="panel">
+      <header class="topbar">
+        <div class="user-box">
+          <div class="avatar" id="avatar-initial">B</div>
+          <div>
+            <p class="muted">Painel do profissional</p>
+            <h1 id="profissional-nome">Carregando...</h1>
+          </div>
+        </div>
+
+        <div class="inline-actions">
+          <button id="open-modal-btn" class="btn">+ Agendar manualmente</button>
+          <button id="logout-btn" class="btn-danger">Logout</button>
+        </div>
+      </header>
+
+      <section class="metrics">
+        <article class="metric-card">
+          <span class="metric-label">Faturamento do dia</span>
+          <strong class="metric-value" id="faturamento-dia">R$ 0,00</strong>
+          <span class="helper-text">Soma de serviços do dia atual, exceto cancelados.</span>
+        </article>
+
+        <article class="metric-card">
+          <span class="metric-label">Total de cortes</span>
+          <strong class="metric-value" id="total-cortes">0</strong>
+          <span class="helper-text">Quantidade de atendimentos do dia atual.</span>
+        </article>
+      </section>
+
+      <section>
+        <div class="section-header">
+          <div class="section-title-wrap">
+            <h2>Agenda de hoje</h2>
+            <p class="muted" id="agenda-subtitle">Atualizada em tempo real pelo Supabase Realtime.</p>
+          </div>
+        </div>
+
+        <div id="timeline" class="timeline"></div>
+      </section>
+    </section>
+  </main>
+
+  <div id="agendamento-modal" class="modal" aria-hidden="true">
+    <div class="modal-content">
+      <div class="section-title-wrap">
+        <h3>Novo agendamento manual</h3>
+        <p class="muted">Escolha o cliente, o serviço e o horário desejado.</p>
+      </div>
+
+      <form id="manual-form">
+        <div class="modal-grid">
+          <div class="field full">
+            <label for="nome-cliente">Nome do cliente</label>
+            <input id="nome-cliente" type="text" placeholder="Ex.: João Silva" required />
+          </div>
+
+          <div class="field full">
+            <label for="whatsapp-cliente">WhatsApp</label>
+            <input id="whatsapp-cliente" type="text" placeholder="5511999999999" required />
+          </div>
+
+          <div class="field full">
+            <label for="servico-id">Serviço</label>
+            <select id="servico-id" required></select>
+          </div>
+
+          <div class="field">
+            <label for="data-agendamento">Data</label>
+            <input id="data-agendamento" type="date" required />
+          </div>
+
+          <div class="field">
+            <label for="hora-agendamento">Horário</label>
+            <input id="hora-agendamento" type="time" required />
+          </div>
+        </div>
+
+        <p id="manual-feedback" class="feedback"></p>
+
+        <div class="inline-actions">
+          <button class="btn" type="submit">Salvar agendamento</button>
+          <button id="close-modal-btn" class="btn-secondary" type="button">Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

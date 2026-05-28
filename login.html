@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Uai Barbearia | Login</title>
+    <link rel="stylesheet" href="./style.css" />
+</head>
+
+<body>
+    <main class="page-shell centered">
+        <section class="auth-card">
+            <div class="brand-mark">B</div>
+            <h1>Entrar no painel</h1>
+            <p class="subtitle">Acesse sua agenda, acompanhe o faturamento e gerencie seus horários em tempo real.</p>
+
+            <form id="login-form" class="form-grid">
+                <div class="field">
+                    <label for="email">E-mail</label>
+                    <input id="email" type="email" placeholder="barbeiro@empresa.com" required />
+                </div>
+
+                <div class="field">
+                    <label for="password">Senha</label>
+                    <input id="password" type="password" placeholder="••••••••" required />
+                </div>
+
+                <button class="btn" type="submit">Entrar</button>
+            </form>
+
+            <p id="login-feedback" class="feedback"></p>
+            <p class="footer-note">Substitua a URL e a chave pública do Supabase no script desta página antes de publicar.</p>
+        </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const SUPABASE_URL = 'https://quzfhkuiduvukuxcmfoq.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1emZoa3VpZHV2dWt1eGNtZm9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MDk3OTAsImV4cCI6MjA5NTQ4NTc5MH0.ztjj-YfMwJgbh606RisxEDW2NzMbfrCMOzzC50qaT3M';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const form = document.getElementById('login-form');
+        const feedback = document.getElementById('login-feedback');
+
+        async function checkExistingSession() {
+            const {
+                data: {
+                    session
+                }
+            } = await supabase.auth.getSession();
+            if (session) {
+                window.location.href = './dashboard.html';
+            }
+        }
+
+        function setFeedback(message, type = '') {
+            feedback.textContent = message;
+            feedback.className = `feedback ${type}`.trim();
+        }
+
+        form.addEventListener('submit', async(event) => {
+            event.preventDefault();
+            setFeedback('Entrando...');
+
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+
+            const {
+                error
+            } = await supabase.auth.signInWithPassword({
+                email,
+                password
+            });
+
+            if (error) {
+                setFeedback(error.message, 'error');
+                return;
+            }
+
+            setFeedback('Login realizado com sucesso. Redirecionando...', 'success');
+            window.location.href = './dashboard.html';
+        });
+
+        checkExistingSession();
+    </script>
+</body>
+
+</html>
