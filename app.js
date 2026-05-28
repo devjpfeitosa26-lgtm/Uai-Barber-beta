@@ -22,7 +22,8 @@ const state = {
     nomeTemp: '',
     servicoCriadoId: null
   },
-  tour: { ativa: false, etapaAtual: 0 }
+  tour: { ativa: false, etapaAtual: 0 },
+  online: navigator.onLine   // ← MELHORIA 3: rastreia conectividade
 };
 
 /* ────── HELPERS ────── */
@@ -40,6 +41,192 @@ function setFeedback(id, msg, type = '') {
   el.textContent = msg;
   el.className = 'feedback ' + type;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   MELHORIA 3: OFFLINE GRACIOSO
+   Monitora a conectividade e exibe/oculta uma barra de status.
+   ══════════════════════════════════════════════════════════════ */
+
+/**
+ * Injeta a barra de status offline no topo da página e registra
+ * os listeners de online/offline do navegador.
+ */
+function iniciarMonitorOffline() {
+  // Cria a barra de status
+  const barra = document.createElement('div');
+  barra.id = 'offline-bar';
+  barra.innerHTML = `
+    <span id="offline-icon">📡</span>
+    <span id="offline-msg">Sem conexão — tentando reconectar...</span>
+    <span id="offline-spinner" class="offline-spinner"></span>
+  `;
+  document.body.prepend(barra);
+
+  // Injeta os estilos da barra
+  const style = document.createElement('style');
+  style.textContent = `
+    #offline-bar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 9999;
+      background: #1a0a0a;
+      border-bottom: 1px solid rgba(239,68,68,0.4);
+      color: #f87171;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 10px 20px;
+      display: none;           /* oculto por padrão */
+      align-items: center;
+      gap: 10px;
+      animation: slideDown 0.3s ease;
+    }
+    #offline-bar.visible { display: flex; }
+    #offline-bar.reconnected {
+      background: #0a1a0f;
+      border-color: rgba(34,197,94,0.4);
+      color: #4ade80;
+    }
+    @keyframes slideDown {
+      from { transform: translateY(-100%); opacity: 0; }
+      to   { transform: translateY(0);     opacity: 1; }
+    }
+    .offline-spinner {
+      width: 14px; height: 14px;
+      border: 2px solid rgba(248,113,113,0.3);
+      border-top-color: #f87171;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+    }
+    /* Empurra o conteúdo para baixo quando a barra estiver visível */
+    body.is-offline .main,
+    body.is-offline .sidebar { margin-top: 41px; }
+  `;
+  document.head.appendChild(style);
+
+  // Listeners de conectividade
+  window.addEventListener('offline', () => {
+    state.online = false;
+    document.body.classList.add('is-offline');
+    const bar = $('offline-bar');
+    bar.classList.remove('reconnected');
+    bar.classList.add('visible');
+    $('offline-icon').textContent = '📡';
+    $('offline-msg').textContent  = 'Sem conexão — tentando reconectar...';
+    $('offline-spinner').style.display = 'inline-block';
+  });
+
+  window.addEventListener('online', () => {
+    state.online = true;
+    const bar = $('offline-bar');
+    bar.classList.add('reconnected');
+    $('offline-icon').textContent = '✅';
+    $('offline-msg').textContent  = 'Conexão restaurada!';
+    $('offline-spinner').style.display = 'none';
+
+    // Recarrega a agenda automaticamente ao voltar
+    loadAgenda(state.currentDate);
+
+    // Oculta a barra após 3s
+    setTimeout(() => {
+      bar.classList.remove('visible', 'reconnected');
+      document.body.classList.remove('is-offline');
+    }, 3000);
+  });
+
+  // Mostra imediatamente se já estiver offline ao carregar
+  if (!navigator.onLine) {
+    window.dispatchEvent(new Event('offline'));
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   MELHORIA 2: NOTIFICAÇÃO SONORA
+   Gera um beep sintético via Web Audio API — sem arquivos externos.
+   ══════════════════════════════════════════════════════════════ */
+
+/**
+ * Toca um som de notificação sutil usando o Web Audio API.
+ * Dois tons ascendentes simulam um "ding" de boas-vindas.
+ * Requer interação prévia do usuário para funcionar (limitação do browser).
+ */
+function tocarSomNotificacao() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+    // Primeiro tom
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(880, ctx.currentTime);          // Lá5
+    osc1.frequency.exponentialRampToValueAtTime(1100, ctx.currentTime + 0.12); // sobe
+    gain1.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+    osc1.start(ctx.currentTime);
+    osc1.stop(ctx.currentTime + 0.35);
+
+    // Segundo tom (ligeiro delay — efeito "ding-dong")
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(1100, ctx.currentTime + 0.2);
+    osc2.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.38);
+    gain2.gain.setValueAtTime(0.18, ctx.currentTime + 0.2);
+    gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+    osc2.start(ctx.currentTime + 0.2);
+    osc2.stop(ctx.currentTime + 0.6);
+
+    // Fecha o contexto após o som terminar para liberar recursos
+    setTimeout(() => ctx.close(), 800);
+  } catch (e) {
+    // Falha silenciosa — não interrompe o fluxo se o browser bloquear
+    console.warn('Som de notificação não disponível:', e.message);
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   MELHORIA 1: CONFIRMAÇÃO POR WHATSAPP
+   Abre o wa.me com mensagem pré-preenchida para confirmar ou
+   comunicar a conclusão do atendimento ao cliente.
+   ══════════════════════════════════════════════════════════════ */
+
+/**
+ * Monta e abre o link do WhatsApp para o cliente.
+ *
+ * @param {string} whatsapp - Número do cliente (somente dígitos, com DDD)
+ * @param {string} nome     - Nome do cliente para personalizar a mensagem
+ * @param {string} horario  - ISO string do horário do agendamento
+ * @param {'confirmado'|'concluido'} tipo - Tipo da mensagem
+ */
+function enviarWhatsApp(whatsapp, nome, horario, tipo) {
+  // Normaliza o número: remove tudo que não é dígito e adiciona DDI 55
+  const numero = '55' + whatsapp.replace(/\D/g, '');
+
+  // Formata o horário de forma legível (ex: "14:30 de 28/05")
+  const dt = new Date(horario);
+  const horaFormatada = dt.toLocaleTimeString('pt-BR', {
+    hour: '2-digit', minute: '2-digit', timeZone: 'UTC'
+  });
+  const dataFormatada = dt.toLocaleDateString('pt-BR', {
+    day: '2-digit', month: '2-digit', timeZone: 'UTC'
+  });
+
+  // Mensagens pré-definidas por tipo de ação
+  const mensagens = {
+    confirmado: `Olá, ${nome}! ✂️ Seu agendamento para as *${horaFormatada}* do dia *${dataFormatada}* está confirmado. Aguardamos você! — UaiBarber`,
+    concluido:  `Olá, ${nome}! 🙏 Obrigado pela visita de hoje (${dataFormatada}). Foi um prazer atendê-lo! Quando quiser marcar novamente, é só chamar. — UaiBarber`
+  };
+
+  const texto = encodeURIComponent(mensagens[tipo] || mensagens.confirmado);
+  window.open(`https://wa.me/${numero}?text=${texto}`, '_blank');
+}
+
 
 /* ────── INFRAESTRUTURA: CARREGAMENTO DE DADOS ────── */
 async function loadProfissional() {
@@ -89,6 +276,101 @@ async function loadAgenda(date) {
   renderTimeline();
 }
 
+
+/* ══════════════════════════════════════════════════════════════
+   MELHORIA 4: INDICADOR DE HORÁRIOS LIVRES
+   Calcula os gaps entre agendamentos/bloqueios e insere chips
+   "Livre: HH:mm – HH:mm" na timeline.
+
+   Lógica:
+   - Considera o dia comercial entre HORA_INICIO_DIA e HORA_FIM_DIA
+   - Usa a duração do serviço (duracao_minutos) para calcular o fim
+     de cada agendamento — mesmo sem `horario_fim` na tabela
+   - Gaps ≥ MIN_GAP_MINUTOS são exibidos como horários livres
+   ══════════════════════════════════════════════════════════════ */
+
+const HORA_INICIO_DIA  = 8;   // 08:00 — início do dia comercial
+const HORA_FIM_DIA     = 20;  // 20:00 — fim do dia comercial
+const MIN_GAP_MINUTOS  = 30;  // gap mínimo para exibir como "livre"
+
+/**
+ * Dado um agendamento ou bloqueio, retorna o horário de fim como objeto Date.
+ * Para agendamentos, usa duracao_minutos do serviço associado.
+ * Para bloqueios, usa o campo horario_fim já disponível.
+ */
+function calcularFimItem(item) {
+  if (item.tipoItem === 'bloqueio') {
+    return new Date(item.horario_fim);
+  }
+  const duracao = item.servicos?.duracao_minutos || 30; // fallback de 30 min
+  const inicio = new Date(item.horario_inicio);
+  return new Date(inicio.getTime() + duracao * 60 * 1000);
+}
+
+/**
+ * Retorna um array de objetos { inicio: Date, fim: Date } representando
+ * os intervalos livres do dia com base nos agendamentos e bloqueios.
+ */
+function calcularHorariosLivres(itensMesclados, dateRef) {
+  if (itensMesclados.length === 0) return [];
+
+  // Define início e fim do expediente para a data de referência
+  const inicioDia = new Date(dateRef);
+  inicioDia.setHours(HORA_INICIO_DIA, 0, 0, 0);
+  const fimDia = new Date(dateRef);
+  fimDia.setHours(HORA_FIM_DIA, 0, 0, 0);
+
+  // Monta lista de intervalos ocupados com início e fim
+  const ocupados = itensMesclados.map(item => ({
+    inicio: new Date(item.horario_inicio),
+    fim: calcularFimItem(item)
+  })).sort((a, b) => a.inicio - b.inicio);
+
+  const livres = [];
+  let cursor = inicioDia;
+
+  for (const slot of ocupados) {
+    const gapMs = slot.inicio - cursor;
+    const gapMin = gapMs / 60000;
+
+    if (gapMin >= MIN_GAP_MINUTOS) {
+      livres.push({ inicio: new Date(cursor), fim: new Date(slot.inicio) });
+    }
+    // Avança o cursor para o fim deste slot (sem voltar atrás)
+    if (slot.fim > cursor) cursor = slot.fim;
+  }
+
+  // Verifica se há tempo livre no final do dia
+  const gapFinalMin = (fimDia - cursor) / 60000;
+  if (gapFinalMin >= MIN_GAP_MINUTOS) {
+    livres.push({ inicio: new Date(cursor), fim: new Date(fimDia) });
+  }
+
+  return livres;
+}
+
+/**
+ * Cria o elemento DOM de um chip de horário livre.
+ */
+function criarCardLivre(livre) {
+  const inicioFmt = livre.inicio.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const fimFmt    = livre.fim.toLocaleTimeString('pt-BR',    { hour: '2-digit', minute: '2-digit' });
+  const duracaoMin = Math.round((livre.fim - livre.inicio) / 60000);
+  const duracaoFmt = duracaoMin >= 60
+    ? `${Math.floor(duracaoMin / 60)}h${duracaoMin % 60 > 0 ? (duracaoMin % 60) + 'min' : ''}`
+    : `${duracaoMin}min`;
+
+  const chip = document.createElement('div');
+  chip.className = 'free-slot-chip';
+  chip.innerHTML = `
+    <span class="free-slot-icon">🟢</span>
+    <span class="free-slot-label">Livre: <strong>${inicioFmt} – ${fimFmt}</strong></span>
+    <span class="free-slot-duration">${duracaoFmt} disponíveis</span>
+  `;
+  return chip;
+}
+
+
 /* ────── RENDERIZAÇÃO DA AGENDA E TIMELINE ────── */
 function renderTimeline() {
   const container = $('timeline-container');
@@ -114,7 +396,24 @@ function renderTimeline() {
     return;
   }
 
-  itensMesclados.forEach(item => {
+  // ── MELHORIA 4: Calcula os horários livres ANTES de renderizar ──
+  // Só exibe livres quando não há filtro ativo (para não confundir)
+  const livres = state.filterStatus === 'todos'
+    ? calcularHorariosLivres(itensMesclados, state.currentDate)
+    : [];
+
+  // Mescla itens ocupados e livres numa única lista ordenada por horário
+  const todosItens = [
+    ...itensMesclados.map(item => ({ tipo: 'ocupado', horario: new Date(item.horario_inicio), dados: item })),
+    ...livres.map(livre => ({ tipo: 'livre', horario: livre.inicio, dados: livre }))
+  ].sort((a, b) => a.horario - b.horario);
+
+  todosItens.forEach(({ tipo, dados: item }) => {
+    if (tipo === 'livre') {
+      container.appendChild(criarCardLivre(item));
+      return;
+    }
+
     const card = document.createElement('div');
     card.className = 'appt-card';
 
@@ -131,6 +430,13 @@ function renderTimeline() {
         </div>
       `;
     } else {
+      // ── MELHORIA 1: Botão WhatsApp no card do agendamento ──
+      const podeEnviarWpp = item.status === 'confirmado' || item.status === 'pendente' || item.status === 'concluido';
+      const tipoWpp = item.status === 'concluido' ? 'concluido' : 'confirmado';
+      const tituloWpp = item.status === 'concluido'
+        ? 'Enviar mensagem de agradecimento'
+        : 'Enviar confirmação por WhatsApp';
+
       card.innerHTML = `
         <div class="appt-time">⏰ ${fmt.time(item.horario_inicio)}</div>
         <div class="appt-info-main">
@@ -139,6 +445,13 @@ function renderTimeline() {
         </div>
         <div class="appt-actions-cell">
           <span class="pill pill-${item.status}">${item.status}</span>
+          ${podeEnviarWpp ? `
+            <button class="btn-icon btn-wpp"
+              title="${tituloWpp}"
+              onclick="enviarWhatsApp('${item.whatsapp_cliente}', '${item.nome_cliente.replace(/'/g, "\\'")}', '${item.horario_inicio}', '${tipoWpp}'); event.stopPropagation();">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+            </button>
+          ` : ''}
           ${item.status === 'confirmado' || item.status === 'pendente' ? `
             <button class="btn-icon" style="color:var(--success);" title="Concluir Atendimento" onclick="alterarStatus('${item.id}', 'concluido', event)">✔</button>
             <button class="btn-icon" style="color:var(--danger);" title="Cancelar Agendamento" onclick="alterarStatus('${item.id}', 'cancelado', event)">✖</button>
@@ -153,6 +466,7 @@ function renderTimeline() {
     container.appendChild(card);
   });
 }
+
 
 /* ────── RECURSO: HISTÓRICO COMPLETO DO CLIENTE ────── */
 async function abrirHistoricoCliente(whatsapp, nome) {
@@ -404,73 +718,34 @@ async function criarAgendamentoManual() {
 
 /* ══════════════════════════════════════════════════════════════
    ────── ONBOARDING GUIADO ──────────────────────────────────
-   Ativado automaticamente no 1º acesso (sem serviços cadastrados)
-   e manualmente via botão "?" a qualquer momento.
    ══════════════════════════════════════════════════════════════ */
 
-/**
- * Gera o link do bot personalizado para o barbeiro.
- * O slug é baseado no ID do usuário (primeiros 8 chars) para garantir unicidade.
- */
 function gerarLinkBot(userId) {
   const slug = userId.replace(/-/g, '').substring(0, 10);
   return `https://uaibarber.app/bot/${slug}`;
 }
 
-/**
- * Controla qual etapa do onboarding está visível.
- * Esconde todas as slides e exibe apenas a etapa desejada.
- */
 function irParaEtapaOnb(etapa) {
   state.onboarding.etapaAtual = etapa;
-
-  // Esconde todas as etapas
-  document.querySelectorAll('.onb-slide').forEach(el => {
-    el.style.display = 'none';
-  });
-
-  // Exibe a etapa alvo
+  document.querySelectorAll('.onb-slide').forEach(el => { el.style.display = 'none'; });
   const alvo = $(`onb-step-${etapa}`);
   if (alvo) alvo.style.display = 'block';
 }
 
-/**
- * Abre o modal de onboarding.
- * Sempre inicia do Passo 1 e limpa os campos para permitir revisão.
- */
 function abrirOnboarding() {
-  // Pré-preenche o campo de nome se o barbeiro já tem cadastro (revisita)
   if (state.profissional?.nome) {
     $('onb-input-nome').value = state.profissional.nome;
   } else {
     $('onb-input-nome').value = '';
   }
-
-  // Limpa os campos de serviço e feedbacks
   $('onb-input-servnome').value    = '';
   $('onb-input-servpreco').value   = '';
   $('onb-input-servduracao').value = '';
-
-  ['onb-feedback-1', 'onb-feedback-2', 'onb-feedback-3'].forEach(id => {
-    setFeedback(id, '', '');
-  });
-
-  // Vai para o passo 1 e abre o modal
+  ['onb-feedback-1', 'onb-feedback-2', 'onb-feedback-3'].forEach(id => { setFeedback(id, '', ''); });
   irParaEtapaOnb(1);
   $('modal-onboarding').classList.add('open');
 }
 
-/**
- * PASSO 1 — Salva o nome comercial do barbeiro.
- *
- * Usa upsert para cobrir dois cenários:
- *  a) Linha já existe (trigger rodou no cadastro) → apenas atualiza o nome.
- *  b) Linha NÃO existe (trigger não rodou, usuário antigo, etc.) → cria a linha.
- *
- * Pré-requisito no Supabase RLS:
- *   create policy "profissionais_inserir_proprio" on public.profissionais
- *     for insert with check (auth.uid() = id);
- */
 async function onbSalvarNome() {
   const nome = $('onb-input-nome').value.trim();
   if (!nome) {
@@ -482,9 +757,6 @@ async function onbSalvarNome() {
   btn.textContent = 'Salvando...';
   btn.disabled = true;
 
-  // Upsert: INSERT se não existir, UPDATE se já existir.
-  // Garante que a linha em `profissionais` existe ANTES de tentar inserir
-  // serviços (que têm FK para esta tabela).
   const { error } = await sb
     .from('profissionais')
     .upsert({ id: state.user.id, nome: nome }, { onConflict: 'id' });
@@ -497,7 +769,6 @@ async function onbSalvarNome() {
     return;
   }
 
-  // Recarrega e confirma que a linha realmente existe agora
   await loadProfissional();
 
   if (!state.profissional) {
@@ -505,7 +776,6 @@ async function onbSalvarNome() {
     return;
   }
 
-  // Atualiza sidebar imediatamente
   state.onboarding.nomeTemp = nome;
   $('prof-name').textContent = nome;
   $('prof-avatar').textContent = nome.charAt(0).toUpperCase();
@@ -513,16 +783,11 @@ async function onbSalvarNome() {
   irParaEtapaOnb(2);
 }
 
-/**
- * PASSO 2 — Cria o primeiro serviço do catálogo.
- * Se já existem serviços, pula direto para o passo 3 sem obrigar novo cadastro.
- */
 async function onbSalvarServico() {
   const nome    = $('onb-input-servnome').value.trim();
   const preco   = $('onb-input-servpreco').value;
   const duracao = $('onb-input-servduracao').value;
 
-  // Se já existem serviços E os campos estão vazios, permite pular
   if (state.servicos.length > 0 && !nome && !preco && !duracao) {
     irParaEtapaOnb(3);
     $('onb-input-linkbot').value = gerarLinkBot(state.user.id);
@@ -553,17 +818,11 @@ async function onbSalvarServico() {
     return;
   }
 
-  // Atualiza lista de serviços em segundo plano
   await loadServicos();
-
-  // Passo 3: exibe o link personalizado do bot
   $('onb-input-linkbot').value = gerarLinkBot(state.user.id);
   irParaEtapaOnb(3);
 }
 
-/**
- * PASSO 3 — Copia o link do bot para a área de transferência.
- */
 async function onbCopiarLink() {
   const link = $('onb-input-linkbot').value;
   try {
@@ -572,36 +831,23 @@ async function onbCopiarLink() {
     $('onb-btn-copiar').textContent = '✔ Copiado';
     setTimeout(() => { $('onb-btn-copiar').textContent = 'Copiar'; }, 2500);
   } catch {
-    // Fallback para navegadores sem suporte à Clipboard API
     $('onb-input-linkbot').select();
     document.execCommand('copy');
     setFeedback('onb-feedback-3', '✔ Link copiado com sucesso!', 'success');
   }
 }
 
-/**
- * PASSO 3 — Finaliza o onboarding e fecha o modal.
- * Marca no localStorage que o onboarding foi concluído ao menos uma vez,
- * para que nas próximas sessões o modal não abra automaticamente.
- */
 function onbFinalizar() {
   localStorage.setItem(`uaibarber_onb_done_${state.user.id}`, '1');
   $('modal-onboarding').classList.remove('open');
   loadAgenda(state.currentDate);
-  // Inicia o tour guiado automaticamente após concluir o onboarding
   setTimeout(iniciarTour, 500);
 }
 
-/**
- * Verifica se o onboarding deve ser exibido automaticamente.
- * Critérios: nunca foi concluído OU o barbeiro não tem nenhum serviço cadastrado.
- */
 function verificarOnboarding() {
   const jaFezOnboarding = localStorage.getItem(`uaibarber_onb_done_${state.user.id}`);
   const semServicos = state.servicos.length === 0;
-
   if (!jaFezOnboarding || semServicos) {
-    // Pequeno delay para o painel carregar antes de exibir o modal
     setTimeout(abrirOnboarding, 400);
   }
 }
@@ -609,11 +855,8 @@ function verificarOnboarding() {
 
 /* ══════════════════════════════════════════════════════════════
    ────── TOUR GUIADO DA INTERFACE ────────────────────────────
-   Destaca cada elemento com spotlight + tooltip explicativo.
-   Iniciado automaticamente após o onboarding ou pelo botão "?".
    ══════════════════════════════════════════════════════════════ */
 
-/* Passos do tour — selector, título, texto e posição do tooltip */
 const TOUR_PASSOS = [
   {
     selector: '[data-target="view-agenda"]',
@@ -671,13 +914,52 @@ const TOUR_PASSOS = [
   }
 ];
 
-/** Injeta os estilos CSS do tour no <head> — chamado uma única vez no init */
 function injetarEstilosTour() {
   if ($('tour-styles')) return;
   const style = document.createElement('style');
   style.id = 'tour-styles';
   style.textContent = `
-    /* ── Overlay e Spotlight ── */
+    /* ── Free Slot Chips (MELHORIA 4) ── */
+    .free-slot-chip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      border-radius: var(--radius);
+      border: 1px dashed rgba(34,197,94,0.25);
+      background: rgba(34,197,94,0.04);
+      font-size: 13px;
+      color: var(--muted);
+      cursor: default;
+      transition: background 0.2s;
+    }
+    .free-slot-chip:hover {
+      background: rgba(34,197,94,0.07);
+    }
+    .free-slot-icon { font-size: 14px; }
+    .free-slot-label { flex: 1; }
+    .free-slot-label strong { color: #4ade80; font-weight: 600; }
+    .free-slot-duration {
+      font-size: 11px;
+      font-weight: 600;
+      color: rgba(74,222,128,0.6);
+      background: rgba(34,197,94,0.08);
+      padding: 3px 8px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+
+    /* ── Botão WhatsApp (MELHORIA 1) ── */
+    .btn-wpp {
+      color: #25D366 !important;
+      transition: transform 0.15s, color 0.15s;
+    }
+    .btn-wpp:hover {
+      transform: scale(1.15);
+      color: #4ade80 !important;
+    }
+
+    /* ── Tour Overlay e Spotlight ── */
     #tour-spotlight {
       position: fixed;
       border-radius: 8px;
@@ -688,7 +970,6 @@ function injetarEstilosTour() {
       outline: 2px solid rgba(201,147,58,0.6);
       outline-offset: 3px;
     }
-    /* ── Tooltip do Tour ── */
     #tour-tooltip {
       position: fixed;
       z-index: 1002;
@@ -713,105 +994,34 @@ function injetarEstilosTour() {
     #tour-tooltip.arrow-right::before { right: -6px; top: 18px; transform: rotate(135deg); border: none; border-left: 1px solid rgba(201,147,58,0.35); border-bottom: 1px solid rgba(201,147,58,0.35); }
     #tour-tooltip.arrow-top::before   { top: -6px;   left: 20px; transform: rotate(45deg); }
     #tour-tooltip.arrow-bottom::before{ bottom: -6px; left: 20px; transform: rotate(225deg); border: none; border-left: 1px solid rgba(201,147,58,0.35); border-bottom: 1px solid rgba(201,147,58,0.35); }
-    .tour-counter {
-      font-size: 11px;
-      font-weight: 600;
-      color: #c9933a;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 6px;
-    }
-    .tour-titulo {
-      font-family: 'Syne', sans-serif;
-      font-size: 15px;
-      font-weight: 700;
-      color: #eef0f4;
-      margin-bottom: 8px;
-    }
-    .tour-texto {
-      font-size: 13px;
-      color: #8896a8;
-      line-height: 1.55;
-      margin-bottom: 16px;
-    }
-    .tour-nav {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }
-    .tour-btn-pular {
-      background: none;
-      border: none;
-      color: #6b7a94;
-      font-size: 12px;
-      cursor: pointer;
-      padding: 4px 0;
-      text-decoration: underline;
-    }
+    .tour-counter { font-size: 11px; font-weight: 600; color: #c9933a; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .tour-titulo { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; color: #eef0f4; margin-bottom: 8px; }
+    .tour-texto { font-size: 13px; color: #8896a8; line-height: 1.55; margin-bottom: 16px; }
+    .tour-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .tour-btn-pular { background: none; border: none; color: #6b7a94; font-size: 12px; cursor: pointer; padding: 4px 0; text-decoration: underline; }
     .tour-btn-pular:hover { color: #ef4444; }
     .tour-nav-right { display: flex; gap: 8px; }
-    .tour-btn-nav {
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.12);
-      color: #eef0f4;
-      padding: 7px 14px;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
+    .tour-btn-nav { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); color: #eef0f4; padding: 7px 14px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
     .tour-btn-nav:hover { background: rgba(255,255,255,0.08); }
-    .tour-btn-nav.primary {
-      background: #c9933a;
-      border-color: #c9933a;
-      color: #000;
-      font-weight: 600;
-    }
+    .tour-btn-nav.primary { background: #c9933a; border-color: #c9933a; color: #000; font-weight: 600; }
     .tour-btn-nav.primary:hover { background: #e8b56a; }
-    /* ── Mini-modal do botão "?" ── */
     #modal-ajuda {
-      position: fixed;
-      bottom: 84px;
-      right: 24px;
-      background: #0f1520;
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 10px;
-      padding: 14px;
-      width: 240px;
+      position: fixed; bottom: 84px; right: 24px;
+      background: #0f1520; border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px; padding: 14px; width: 240px;
       box-shadow: 0 8px 30px rgba(0,0,0,0.7);
-      z-index: 1000;
-      display: none;
-      flex-direction: column;
-      gap: 8px;
+      z-index: 1000; display: none; flex-direction: column; gap: 8px;
     }
     #modal-ajuda.open { display: flex; }
-    #modal-ajuda h5 {
-      font-size: 11px;
-      font-weight: 600;
-      color: #6b7a94;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 4px;
-    }
-    .ajuda-opcao {
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.08);
-      color: #eef0f4;
-      padding: 10px 12px;
-      border-radius: 7px;
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      text-align: left;
-      transition: background 0.2s, border-color 0.2s;
-    }
+    #modal-ajuda h5 { font-size: 11px; font-weight: 600; color: #6b7a94; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .ajuda-opcao { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: #eef0f4; padding: 10px 12px; border-radius: 7px; font-size: 13px; font-weight: 500; cursor: pointer; text-align: left; transition: background 0.2s, border-color 0.2s; }
     .ajuda-opcao:hover { background: rgba(201,147,58,0.1); border-color: rgba(201,147,58,0.3); }
+
+    /* ── Spinner genérico ── */
+    @keyframes spin { to { transform: rotate(360deg); } }
   `;
   document.head.appendChild(style);
 
-  /* Cria os elementos do spotlight, tooltip e mini-modal dinamicamente */
   const spotlight = document.createElement('div');
   spotlight.id = 'tour-spotlight';
   spotlight.style.display = 'none';
@@ -832,39 +1042,33 @@ function injetarEstilosTour() {
   document.body.appendChild(miniModal);
 }
 
-/** Inicia o tour a partir do passo 0 */
 function iniciarTour() {
-  // Garante que o mini-modal esteja fechado
   const miniModal = $('modal-ajuda');
   if (miniModal) miniModal.classList.remove('open');
-
   state.tour.ativa = true;
   state.tour.etapaAtual = 0;
   renderizarPassoTour(0);
 }
 
-/** Renderiza um passo específico do tour */
 function renderizarPassoTour(index) {
   const passo = TOUR_PASSOS[index];
   if (!passo) { finalizarTour(); return; }
 
   const alvo = document.querySelector(passo.selector);
-  if (!alvo) { renderizarPassoTour(index + 1); return; } // pula se elemento não existe
+  if (!alvo) { renderizarPassoTour(index + 1); return; }
 
   const spotlight  = $('tour-spotlight');
   const tooltip    = $('tour-tooltip');
   const rect       = alvo.getBoundingClientRect();
-  const PAD        = 6; // padding visual ao redor do elemento destacado
-  const MARGEM     = 14; // distância entre spotlight e tooltip
+  const PAD        = 6;
+  const MARGEM     = 14;
 
-  /* ── Posiciona o spotlight sobre o elemento ── */
   spotlight.style.display = 'block';
   spotlight.style.top     = `${rect.top    - PAD}px`;
   spotlight.style.left    = `${rect.left   - PAD}px`;
   spotlight.style.width   = `${rect.width  + PAD * 2}px`;
   spotlight.style.height  = `${rect.height + PAD * 2}px`;
 
-  /* ── Monta o conteúdo do tooltip ── */
   const ehUltimo   = index === TOUR_PASSOS.length - 1;
   const ehPrimeiro = index === 0;
 
@@ -886,9 +1090,8 @@ function renderizarPassoTour(index) {
     </div>
   `;
 
-  /* ── Posiciona o tooltip de acordo com a direção preferida ── */
-  const ttW = 300; // largura fixa do tooltip
-  const ttH = tooltip.offsetHeight || 180; // estimativa antes de renderizar
+  const ttW = 300;
+  const ttH = tooltip.offsetHeight || 180;
   const vW  = window.innerWidth;
   const vH  = window.innerHeight;
 
@@ -899,7 +1102,6 @@ function renderizarPassoTour(index) {
       left = rect.right + PAD + MARGEM;
       top  = rect.top + PAD;
       arrowClass = 'arrow-left';
-      // Se não couber à direita, inverte para esquerda
       if (left + ttW > vW - 10) { left = rect.left - PAD - MARGEM - ttW; arrowClass = 'arrow-right'; }
       break;
     case 'left':
@@ -923,7 +1125,6 @@ function renderizarPassoTour(index) {
       break;
   }
 
-  // Garante que o tooltip não ultrapasse a tela verticalmente
   top  = Math.max(10, Math.min(top,  vH - ttH - 10));
   left = Math.max(10, Math.min(left, vW - ttW - 10));
 
@@ -931,13 +1132,10 @@ function renderizarPassoTour(index) {
   tooltip.style.left = `${left}px`;
   tooltip.classList.add(arrowClass);
 
-  // Fade in suave
   requestAnimationFrame(() => { tooltip.style.opacity = '1'; });
 
-  /* ── Scroll para garantir que o elemento esteja visível ── */
   alvo.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
 
-  /* ── Bindings dos botões do tooltip ── */
   $('tour-btn-pular').addEventListener('click', finalizarTour);
   $('tour-btn-proximo').addEventListener('click', () => renderizarPassoTour(index + 1));
   const btnAnterior = $('tour-btn-anterior');
@@ -946,7 +1144,6 @@ function renderizarPassoTour(index) {
   state.tour.etapaAtual = index;
 }
 
-/** Remove todos os elementos visuais do tour */
 function finalizarTour() {
   state.tour.ativa = false;
   const spotlight = $('tour-spotlight');
@@ -955,13 +1152,12 @@ function finalizarTour() {
   if (tooltip)   tooltip.style.display   = 'none';
 }
 
-/* ────── EVENT BINDINGS (OUVINTES DE INTERAÇÃO) ────── */
+/* ────── EVENT BINDINGS ────── */
 function updateDateLabel() {
   $('current-date-lbl').textContent = state.currentDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function bindEvents() {
-  // ── Controle de Abas do Menu Lateral ──
   document.querySelectorAll('.nav-item').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
@@ -980,11 +1176,9 @@ function bindEvents() {
     });
   });
 
-  // ── Navegação de datas ──
   $('btn-prev-day').addEventListener('click', () => { state.currentDate.setDate(state.currentDate.getDate() - 1); updateDateLabel(); loadAgenda(state.currentDate); });
   $('btn-next-day').addEventListener('click', () => { state.currentDate.setDate(state.currentDate.getDate() + 1); updateDateLabel(); loadAgenda(state.currentDate); });
 
-  // ── Modais Principais ──
   $('btn-open-bloqueio').addEventListener('click', () => { $('bloqueio-feedback').className = 'feedback'; $('modal-bloqueio').classList.add('open'); });
   $('btn-cancelar-bloqueio').addEventListener('click', () => $('modal-bloqueio').classList.remove('open'));
   $('btn-salvar-bloqueio').addEventListener('click', salvarBloqueio);
@@ -998,7 +1192,6 @@ function bindEvents() {
   $('btn-cancelar-service').addEventListener('click', () => $('modal-service').classList.remove('open'));
   $('btn-salvar-service').addEventListener('click', salvarServico);
 
-  // ── Filtros de status da Timeline ──
   $('status-filter').querySelectorAll('.status-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       $('status-filter').querySelectorAll('.status-chip').forEach(c => c.classList.remove('active'));
@@ -1012,44 +1205,25 @@ function bindEvents() {
   $('logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); window.location.replace('./index.html'); });
   $('btn-close-alert').addEventListener('click', () => $('modal-alert').classList.remove('open'));
 
-  // ── Mobile Menu ──
   $('mobile-menu-btn').addEventListener('click', () => { $('sidebar').classList.add('open'); $('sidebar-overlay').style.display = 'block'; });
   $('sidebar-overlay').addEventListener('click', closeSidebar);
 
-  // ── Assinatura ──
   $('btn-renew-sub')?.addEventListener('click', () => {
     window.open('https://wa.me/?text=Olá! Gostaria de renovar minha assinatura UaiBarber.', '_blank');
   });
 
-  // ══════════════════════════════════════════
-  // ── ONBOARDING: Bindings dos passos ──────
-  // ══════════════════════════════════════════
-
-  // Passo 1 → 2: Salvar nome da barbearia
   $('onb-btn-proximo-1').addEventListener('click', onbSalvarNome);
-
-  // Passo 1: tecla Enter avança
-  $('onb-input-nome').addEventListener('keydown', e => {
-    if (e.key === 'Enter') onbSalvarNome();
-  });
-
-  // Passo 2 → 3: Salvar primeiro serviço
+  $('onb-input-nome').addEventListener('keydown', e => { if (e.key === 'Enter') onbSalvarNome(); });
   $('onb-btn-proximo-2').addEventListener('click', onbSalvarServico);
-
-  // Passo 3: Copiar link do bot
   $('onb-btn-copiar').addEventListener('click', onbCopiarLink);
-
-  // Passo 3: Finalizar onboarding
   $('onb-btn-finalizar').addEventListener('click', onbFinalizar);
 
-  // Botão "?" flutuante — abre o mini-modal de ajuda
   $('btn-help-tutorial').addEventListener('click', (e) => {
     e.stopPropagation();
     const mini = $('modal-ajuda');
     if (mini) mini.classList.toggle('open');
   });
 
-  // Mini-modal de ajuda: opção configuração
   document.addEventListener('click', (e) => {
     const mini = $('modal-ajuda');
     if (mini && !mini.contains(e.target) && e.target.id !== 'btn-help-tutorial') {
@@ -1068,11 +1242,8 @@ function bindEvents() {
     }
   });
 
-  // Fechar onboarding clicando fora (apenas no overlay, não no box)
   $('modal-onboarding').addEventListener('click', e => {
-    // Só fecha se clicar no fundo escuro, não no conteúdo do modal
     if (e.target === $('modal-onboarding')) {
-      // Se for onboarding obrigatório (sem serviços), não deixa fechar
       const semServicos = state.servicos.length === 0;
       if (!semServicos) {
         $('modal-onboarding').classList.remove('open');
@@ -1089,6 +1260,9 @@ function startRealtime() {
     .on('postgres_changes', { event: 'INSERT', pattern: 'public', table: 'agendamentos' }, async (payload) => {
       const { data: appt } = await sb.from('agendamentos').select('*, servicos(*)').eq('id', payload.new.id).maybeSingle();
       if (appt) {
+        // ── MELHORIA 2: Toca o som de notificação ──
+        tocarSomNotificacao();
+
         $('alert-content').innerHTML = `
           <strong>Cliente:</strong> ${appt.nome_cliente}<br>
           <strong>Serviço:</strong> ${appt.servicos?.nome}<br>
@@ -1107,7 +1281,8 @@ async function init() {
   if (!session) { window.location.replace('./index.html'); return; }
   state.user = session.user;
 
-  injetarEstilosTour(); // injeta CSS e elementos do tour guiado
+  injetarEstilosTour();
+  iniciarMonitorOffline(); // ← MELHORIA 3: inicia monitor de conectividade
   bindEvents();
   updateDateLabel();
 
@@ -1116,11 +1291,7 @@ async function init() {
     await loadServicos();
     await loadAgenda(state.currentDate);
     startRealtime();
-
-    // ── Verifica se deve iniciar o onboarding automaticamente ──
-    // Executa após tudo carregar para ter os dados de serviços disponíveis
     verificarOnboarding();
-
   } catch (e) {
     console.error('Erro na inicialização do painel:', e);
   }
