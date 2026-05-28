@@ -21,7 +21,8 @@ const state = {
     etapaAtual: 1,
     nomeTemp: '',
     servicoCriadoId: null
-  }
+  },
+  tour: { ativa: false, etapaAtual: 0 }
 };
 
 /* ────── HELPERS ────── */
@@ -587,6 +588,8 @@ function onbFinalizar() {
   localStorage.setItem(`uaibarber_onb_done_${state.user.id}`, '1');
   $('modal-onboarding').classList.remove('open');
   loadAgenda(state.currentDate);
+  // Inicia o tour guiado automaticamente após concluir o onboarding
+  setTimeout(iniciarTour, 500);
 }
 
 /**
@@ -601,6 +604,355 @@ function verificarOnboarding() {
     // Pequeno delay para o painel carregar antes de exibir o modal
     setTimeout(abrirOnboarding, 400);
   }
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   ────── TOUR GUIADO DA INTERFACE ────────────────────────────
+   Destaca cada elemento com spotlight + tooltip explicativo.
+   Iniciado automaticamente após o onboarding ou pelo botão "?".
+   ══════════════════════════════════════════════════════════════ */
+
+/* Passos do tour — selector, título, texto e posição do tooltip */
+const TOUR_PASSOS = [
+  {
+    selector: '[data-target="view-agenda"]',
+    titulo: '📅 Agenda do Dia',
+    texto: 'Este é o coração do seu painel. Aqui você vê todos os agendamentos e bloqueios do dia, organizados por horário. Clique em qualquer card para ver o histórico completo do cliente.',
+    posicao: 'right'
+  },
+  {
+    selector: '.date-picker-ctrl',
+    titulo: '📆 Navegação de Datas',
+    texto: 'Use as setas para avançar ou voltar entre os dias. Você pode consultar a agenda de qualquer data, passada ou futura.',
+    posicao: 'bottom'
+  },
+  {
+    selector: '#btn-new-appt',
+    titulo: '➕ Novo Agendamento',
+    texto: 'Clique aqui para cadastrar um agendamento manual — para clientes que ligam, mandam mensagem ou aparecem pessoalmente. Basta preencher nome, WhatsApp, serviço e horário.',
+    posicao: 'bottom'
+  },
+  {
+    selector: '#btn-open-bloqueio',
+    titulo: '🔒 Bloquear Horário',
+    texto: 'Precisa de uma pausa? Bloqueie faixas de horário para almoço, folga ou férias. O robô de agendamento não vai marcar nenhum cliente nesse intervalo.',
+    posicao: 'bottom'
+  },
+  {
+    selector: '#status-filter',
+    titulo: '🔍 Filtros de Status',
+    texto: 'Filtre os atendimentos por status: confirmados, concluídos ou cancelados. Útil para fechar o caixa no fim do dia ou conferir o que ficou pendente.',
+    posicao: 'bottom'
+  },
+  {
+    selector: '[data-target="view-relatorios"]',
+    titulo: '📊 Relatórios Visuais',
+    texto: 'Acesse seus números: faturamento por dia em gráfico, serviço mais vendido, ticket médio e total de atendimentos concluídos. Tudo calculado automaticamente.',
+    posicao: 'right'
+  },
+  {
+    selector: '[data-target="view-servicos"]',
+    titulo: '✂️ Meus Serviços',
+    texto: 'Gerencie seu catálogo aqui. Adicione ou remova serviços com nome, preço e duração. O robô usa essa lista para oferecer opções aos clientes no WhatsApp.',
+    posicao: 'right'
+  },
+  {
+    selector: '[data-target="view-assinatura"]',
+    titulo: '💳 Minha Assinatura',
+    texto: 'Acompanhe o status do seu plano e a data de renovação. Caso precise de ajuda, entre em contato pelo WhatsApp direto desta aba.',
+    posicao: 'right'
+  },
+  {
+    selector: '#btn-help-tutorial',
+    titulo: '❓ Ajuda Rápida',
+    texto: 'Este botão estará sempre aqui! Clique a qualquer momento para rever a configuração inicial ou iniciar este tour novamente.',
+    posicao: 'top'
+  }
+];
+
+/** Injeta os estilos CSS do tour no <head> — chamado uma única vez no init */
+function injetarEstilosTour() {
+  if ($('tour-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'tour-styles';
+  style.textContent = `
+    /* ── Overlay e Spotlight ── */
+    #tour-spotlight {
+      position: fixed;
+      border-radius: 8px;
+      z-index: 1001;
+      pointer-events: none;
+      transition: top 0.35s ease, left 0.35s ease, width 0.35s ease, height 0.35s ease;
+      box-shadow: 0 0 0 9999px rgba(5, 7, 11, 0.82);
+      outline: 2px solid rgba(201,147,58,0.6);
+      outline-offset: 3px;
+    }
+    /* ── Tooltip do Tour ── */
+    #tour-tooltip {
+      position: fixed;
+      z-index: 1002;
+      background: #0f1520;
+      border: 1px solid rgba(201,147,58,0.35);
+      border-radius: 10px;
+      padding: 18px 20px;
+      width: 300px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.7);
+      transition: top 0.35s ease, left 0.35s ease, opacity 0.2s ease;
+    }
+    #tour-tooltip::before {
+      content: '';
+      position: absolute;
+      width: 10px; height: 10px;
+      background: #0f1520;
+      border-left: 1px solid rgba(201,147,58,0.35);
+      border-top: 1px solid rgba(201,147,58,0.35);
+      transform: rotate(45deg);
+    }
+    #tour-tooltip.arrow-left::before  { left: -6px;  top: 18px; transform: rotate(-45deg); border: none; border-left: 1px solid rgba(201,147,58,0.35); border-bottom: 1px solid rgba(201,147,58,0.35); }
+    #tour-tooltip.arrow-right::before { right: -6px; top: 18px; transform: rotate(135deg); border: none; border-left: 1px solid rgba(201,147,58,0.35); border-bottom: 1px solid rgba(201,147,58,0.35); }
+    #tour-tooltip.arrow-top::before   { top: -6px;   left: 20px; transform: rotate(45deg); }
+    #tour-tooltip.arrow-bottom::before{ bottom: -6px; left: 20px; transform: rotate(225deg); border: none; border-left: 1px solid rgba(201,147,58,0.35); border-bottom: 1px solid rgba(201,147,58,0.35); }
+    .tour-counter {
+      font-size: 11px;
+      font-weight: 600;
+      color: #c9933a;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+    .tour-titulo {
+      font-family: 'Syne', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      color: #eef0f4;
+      margin-bottom: 8px;
+    }
+    .tour-texto {
+      font-size: 13px;
+      color: #8896a8;
+      line-height: 1.55;
+      margin-bottom: 16px;
+    }
+    .tour-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .tour-btn-pular {
+      background: none;
+      border: none;
+      color: #6b7a94;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 4px 0;
+      text-decoration: underline;
+    }
+    .tour-btn-pular:hover { color: #ef4444; }
+    .tour-nav-right { display: flex; gap: 8px; }
+    .tour-btn-nav {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: #eef0f4;
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .tour-btn-nav:hover { background: rgba(255,255,255,0.08); }
+    .tour-btn-nav.primary {
+      background: #c9933a;
+      border-color: #c9933a;
+      color: #000;
+      font-weight: 600;
+    }
+    .tour-btn-nav.primary:hover { background: #e8b56a; }
+    /* ── Mini-modal do botão "?" ── */
+    #modal-ajuda {
+      position: fixed;
+      bottom: 84px;
+      right: 24px;
+      background: #0f1520;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px;
+      padding: 14px;
+      width: 240px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.7);
+      z-index: 1000;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #modal-ajuda.open { display: flex; }
+    #modal-ajuda h5 {
+      font-size: 11px;
+      font-weight: 600;
+      color: #6b7a94;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .ajuda-opcao {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: #eef0f4;
+      padding: 10px 12px;
+      border-radius: 7px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .ajuda-opcao:hover { background: rgba(201,147,58,0.1); border-color: rgba(201,147,58,0.3); }
+  `;
+  document.head.appendChild(style);
+
+  /* Cria os elementos do spotlight, tooltip e mini-modal dinamicamente */
+  const spotlight = document.createElement('div');
+  spotlight.id = 'tour-spotlight';
+  spotlight.style.display = 'none';
+  document.body.appendChild(spotlight);
+
+  const tooltip = document.createElement('div');
+  tooltip.id = 'tour-tooltip';
+  tooltip.style.display = 'none';
+  document.body.appendChild(tooltip);
+
+  const miniModal = document.createElement('div');
+  miniModal.id = 'modal-ajuda';
+  miniModal.innerHTML = `
+    <h5>Como posso ajudar?</h5>
+    <button class="ajuda-opcao" id="ajuda-btn-onboarding">⚙️ Refazer Configuração Inicial</button>
+    <button class="ajuda-opcao" id="ajuda-btn-tour">🗺️ Tour Guiado da Plataforma</button>
+  `;
+  document.body.appendChild(miniModal);
+}
+
+/** Inicia o tour a partir do passo 0 */
+function iniciarTour() {
+  // Garante que o mini-modal esteja fechado
+  const miniModal = $('modal-ajuda');
+  if (miniModal) miniModal.classList.remove('open');
+
+  state.tour.ativa = true;
+  state.tour.etapaAtual = 0;
+  renderizarPassoTour(0);
+}
+
+/** Renderiza um passo específico do tour */
+function renderizarPassoTour(index) {
+  const passo = TOUR_PASSOS[index];
+  if (!passo) { finalizarTour(); return; }
+
+  const alvo = document.querySelector(passo.selector);
+  if (!alvo) { renderizarPassoTour(index + 1); return; } // pula se elemento não existe
+
+  const spotlight  = $('tour-spotlight');
+  const tooltip    = $('tour-tooltip');
+  const rect       = alvo.getBoundingClientRect();
+  const PAD        = 6; // padding visual ao redor do elemento destacado
+  const MARGEM     = 14; // distância entre spotlight e tooltip
+
+  /* ── Posiciona o spotlight sobre o elemento ── */
+  spotlight.style.display = 'block';
+  spotlight.style.top     = `${rect.top    - PAD}px`;
+  spotlight.style.left    = `${rect.left   - PAD}px`;
+  spotlight.style.width   = `${rect.width  + PAD * 2}px`;
+  spotlight.style.height  = `${rect.height + PAD * 2}px`;
+
+  /* ── Monta o conteúdo do tooltip ── */
+  const ehUltimo   = index === TOUR_PASSOS.length - 1;
+  const ehPrimeiro = index === 0;
+
+  tooltip.className = '';
+  tooltip.style.display = 'block';
+  tooltip.style.opacity = '0';
+  tooltip.innerHTML = `
+    <div class="tour-counter">Passo ${index + 1} de ${TOUR_PASSOS.length}</div>
+    <div class="tour-titulo">${passo.titulo}</div>
+    <p class="tour-texto">${passo.texto}</p>
+    <div class="tour-nav">
+      <button class="tour-btn-pular" id="tour-btn-pular">Pular tour</button>
+      <div class="tour-nav-right">
+        ${!ehPrimeiro ? `<button class="tour-btn-nav" id="tour-btn-anterior">← Anterior</button>` : ''}
+        <button class="tour-btn-nav primary" id="tour-btn-proximo">
+          ${ehUltimo ? '✔ Concluir' : 'Próximo →'}
+        </button>
+      </div>
+    </div>
+  `;
+
+  /* ── Posiciona o tooltip de acordo com a direção preferida ── */
+  const ttW = 300; // largura fixa do tooltip
+  const ttH = tooltip.offsetHeight || 180; // estimativa antes de renderizar
+  const vW  = window.innerWidth;
+  const vH  = window.innerHeight;
+
+  let top, left, arrowClass;
+
+  switch (passo.posicao) {
+    case 'right':
+      left = rect.right + PAD + MARGEM;
+      top  = rect.top + PAD;
+      arrowClass = 'arrow-left';
+      // Se não couber à direita, inverte para esquerda
+      if (left + ttW > vW - 10) { left = rect.left - PAD - MARGEM - ttW; arrowClass = 'arrow-right'; }
+      break;
+    case 'left':
+      left = rect.left - PAD - MARGEM - ttW;
+      top  = rect.top + PAD;
+      arrowClass = 'arrow-right';
+      if (left < 10) { left = rect.right + PAD + MARGEM; arrowClass = 'arrow-left'; }
+      break;
+    case 'bottom':
+      top  = rect.bottom + PAD + MARGEM;
+      left = Math.min(rect.left - PAD, vW - ttW - 10);
+      arrowClass = 'arrow-top';
+      if (top + ttH > vH - 10) { top = rect.top - PAD - MARGEM - ttH; arrowClass = 'arrow-bottom'; }
+      break;
+    case 'top':
+    default:
+      top  = rect.top - PAD - MARGEM - ttH;
+      left = Math.min(rect.left - PAD, vW - ttW - 10);
+      arrowClass = 'arrow-bottom';
+      if (top < 10) { top = rect.bottom + PAD + MARGEM; arrowClass = 'arrow-top'; }
+      break;
+  }
+
+  // Garante que o tooltip não ultrapasse a tela verticalmente
+  top  = Math.max(10, Math.min(top,  vH - ttH - 10));
+  left = Math.max(10, Math.min(left, vW - ttW - 10));
+
+  tooltip.style.top  = `${top}px`;
+  tooltip.style.left = `${left}px`;
+  tooltip.classList.add(arrowClass);
+
+  // Fade in suave
+  requestAnimationFrame(() => { tooltip.style.opacity = '1'; });
+
+  /* ── Scroll para garantir que o elemento esteja visível ── */
+  alvo.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+
+  /* ── Bindings dos botões do tooltip ── */
+  $('tour-btn-pular').addEventListener('click', finalizarTour);
+  $('tour-btn-proximo').addEventListener('click', () => renderizarPassoTour(index + 1));
+  const btnAnterior = $('tour-btn-anterior');
+  if (btnAnterior) btnAnterior.addEventListener('click', () => renderizarPassoTour(index - 1));
+
+  state.tour.etapaAtual = index;
+}
+
+/** Remove todos os elementos visuais do tour */
+function finalizarTour() {
+  state.tour.ativa = false;
+  const spotlight = $('tour-spotlight');
+  const tooltip   = $('tour-tooltip');
+  if (spotlight) spotlight.style.display = 'none';
+  if (tooltip)   tooltip.style.display   = 'none';
 }
 
 /* ────── EVENT BINDINGS (OUVINTES DE INTERAÇÃO) ────── */
@@ -690,9 +1042,30 @@ function bindEvents() {
   // Passo 3: Finalizar onboarding
   $('onb-btn-finalizar').addEventListener('click', onbFinalizar);
 
-  // Botão "?" flutuante — reabre o tutorial a qualquer momento
-  $('btn-help-tutorial').addEventListener('click', () => {
-    abrirOnboarding();
+  // Botão "?" flutuante — abre o mini-modal de ajuda
+  $('btn-help-tutorial').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const mini = $('modal-ajuda');
+    if (mini) mini.classList.toggle('open');
+  });
+
+  // Mini-modal de ajuda: opção configuração
+  document.addEventListener('click', (e) => {
+    const mini = $('modal-ajuda');
+    if (mini && !mini.contains(e.target) && e.target.id !== 'btn-help-tutorial') {
+      mini.classList.remove('open');
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (e.target.id === 'ajuda-btn-onboarding') {
+      $('modal-ajuda').classList.remove('open');
+      abrirOnboarding();
+    }
+    if (e.target.id === 'ajuda-btn-tour') {
+      $('modal-ajuda').classList.remove('open');
+      iniciarTour();
+    }
   });
 
   // Fechar onboarding clicando fora (apenas no overlay, não no box)
@@ -734,6 +1107,7 @@ async function init() {
   if (!session) { window.location.replace('./index.html'); return; }
   state.user = session.user;
 
+  injetarEstilosTour(); // injeta CSS e elementos do tour guiado
   bindEvents();
   updateDateLabel();
 
