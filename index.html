@@ -35,55 +35,58 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script>
-        const SUPABASE_URL = 'https://quzfhkuiduvukuxcmfoq.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1emZoa3VpZHV2dWt1eGNtZm9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MDk3OTAsImV4cCI6MjA5NTQ4NTc5MH0.ztjj-YfMwJgbh606RisxEDW2NzMbfrCMOzzC50qaT3M';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+    const SUPABASE_URL = 'https://quzfhkuiduvukuxcmfoq.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1emZoa3VpZHV2dWt1eGNtZm9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MDk3OTAsImV4cCI6MjA5NTQ4NTc5MH0.ztjj-YfMwJgbh606RisxEDW2NzMbfrCMOzzC50qaT3M';
+    
+    // MUDANÇA AQUI: Alterado o nome da constante para evitar conflito com a biblioteca global
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        const form = document.getElementById('login-form');
-        const feedback = document.getElementById('login-feedback');
+    const form = document.getElementById('login-form');
+    const feedback = document.getElementById('login-feedback');
 
-        async function checkExistingSession() {
-            const {
-                data: {
-                    session
-                }
-            } = await supabase.auth.getSession();
-            if (session) {
-                window.location.href = './dashboard.html';
+    async function checkExistingSession() {
+        const {
+            data: {
+                session
             }
-        }
-
-        function setFeedback(message, type = '') {
-            feedback.textContent = message;
-            feedback.className = `feedback ${type}`.trim();
-        }
-
-        form.addEventListener('submit', async(event) => {
-            event.preventDefault();
-            setFeedback('Entrando...');
-
-            const email = document.getElementById('email').value.trim();
-            const password = document.getElementById('password').value;
-
-            const {
-                error
-            } = await supabase.auth.signInWithPassword({
-                email,
-                password
-            });
-
-            if (error) {
-                setFeedback(error.message, 'error');
-                return;
-            }
-
-            setFeedback('Login realizado com sucesso. Redirecionando...', 'success');
+        } = await supabaseClient.auth.getSession(); // Ajustado aqui
+        if (session) {
             window.location.href = './dashboard.html';
+        }
+    }
+
+    function setFeedback(message, type = '') {
+        feedback.textContent = message;
+        feedback.className = `feedback ${type}`.trim();
+    }
+
+    form.addEventListener('submit', async(event) => {
+        event.preventDefault();
+        setFeedback('Entrando...');
+
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+
+        const {
+            error
+        } = await supabaseClient.auth.signInWithPassword({ // Ajustado aqui
+            email,
+            password
         });
 
-        checkExistingSession();
-    </script>
+        if (error) {
+            setFeedback(error.message, 'error');
+            return;
+        }
+
+        setFeedback('Login realizado com sucesso. Redirecionando...', 'success');
+        window.location.href = './dashboard.html';
+    });
+
+    checkExistingSession();
+</script>
 </body>
 
 </html>
