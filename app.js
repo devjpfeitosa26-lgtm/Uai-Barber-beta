@@ -849,6 +849,373 @@ async function renderizarRelatoriosVisuais() {
 }
 
 
+/* ══════════════════════════════════════════════════════════════
+   EXPORTAR RELATÓRIO EM PDF
+   Gera um PDF profissional com jsPDF + html2canvas, carregados
+   sob demanda (lazy) — não impacta o carregamento normal da página.
+
+   Estrutura do PDF:
+     Página 1 — Capa com métricas + gráfico de barras por dia
+     Página 2 — Tabela detalhada de todos os atendimentos concluídos
+   ══════════════════════════════════════════════════════════════ */
+
+/** Carrega uma lib via <script> de forma assíncrona (singleton). */
+function carregarScript(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = src; s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+/**
+ * Exporta o relatório financeiro do período atual como PDF.
+ * Busca os dados diretamente do Supabase para garantir consistência.
+ */
+async function exportarRelatorioPDF() {
+  const btn = $('btn-exportar-pdf');
+  const textoOriginal = btn?.innerHTML;
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="pdf-spinner"></span> Gerando PDF...`;
+  }
+
+  try {
+    if (!window.jspdf?.jsPDF) throw new Error('jsPDF não carregado. Verifique sua conexão e recarregue a página.');
+    const { jsPDF } = window.jspdf;
+
+    // ── Busca dados do período selecionado ──
+    const { inicio, fim } = calcularIntervaloRelatorio();
+    const { data: appts, error } = await sb
+      .from('agendamentos').select('*, servicos(*)')
+      .gte('horario_inicio', inicio.toISOString())
+      .lte('horario_inicio', fim.toISOString())
+      .order('horario_inicio', { ascending: false });
+
+    if (error || !appts) throw new Error('Falha ao buscar dados do Supabase');
+
+    const concluidos       = appts.filter(a => a.status === 'concluido');
+    const faturamentoTotal = concluidos.reduce((acc, c) => acc + Number(c.servicos?.preco || 0), 0);
+    const totalConcluidos  = concluidos.length;
+    const ticketMedio      = totalConcluidos > 0 ? faturamentoTotal / totalConcluidos : 0;
+
+    const contagemServicos = {};
+    concluidos.forEach(a => {
+      const nome = a.servicos?.nome || 'Não identificado';
+      contagemServicos[nome] = (contagemServicos[nome] || 0) + 1;
+    });
+
+    const faturamentoPorDia = {};
+    concluidos.forEach(a => {
+      const d = new Date(a.horario_inicio).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'UTC' });
+      faturamentoPorDia[d] = (faturamentoPorDia[d] || 0) + Number(a.servicos?.preco || 0);
+    });
+
+    // ── Configuração do documento ──
+    const doc    = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const PW     = 210; // largura A4
+    const PH     = 297; // altura A4
+    const MARG   = 16;  // margem lateral
+    const COLAR  = '#c9933a'; // dourado UaiBarber
+    const DARK   = '#070b10';
+    const MUTED  = '#6b7a94';
+    const TEXT   = '#eef0f4';
+    const SUCCESS= '#22c55e';
+    const barbearia = state.profissional?.nome || 'UaiBarber';
+    const hoje      = new Date().toLocaleDateString('pt-BR');
+
+    // Label do período
+    const labPeriodo = {
+      semana: 'Esta Semana',
+      mes:    'Este Mês',
+      custom: `${inicio.toLocaleDateString('pt-BR')} – ${fim.toLocaleDateString('pt-BR')}`
+    }[state.relatorioFiltro.tipo] || 'Este Mês';
+
+    // ── Helper de retângulo arredondado ──
+    function roundRect(x, y, w, h, r, fill, stroke) {
+      doc.setFillColor(fill || '#ffffff');
+      if (stroke) doc.setDrawColor(stroke); else doc.setDrawColor(fill || '#ffffff');
+      doc.roundedRect(x, y, w, h, r, r, stroke ? 'FD' : 'F');
+    }
+
+    // ─────────────────────────────────────────────
+    // PÁGINA 1 — CAPA E MÉTRICAS
+    // ─────────────────────────────────────────────
+
+    // Cabeçalho escuro
+    roundRect(0, 0, PW, 42, 0, DARK);
+
+    // Logo / marca
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(22);
+    doc.setTextColor(COLAR);
+    doc.text(barbearia, MARG, 18);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(MUTED);
+    doc.text(`Relatório Financeiro — ${labPeriodo}`, MARG, 25);
+    doc.text(`Gerado em: ${hoje}`, MARG, 31);
+
+    // Linha dourada decorativa
+    doc.setDrawColor(COLAR);
+    doc.setLineWidth(0.5);
+    doc.line(MARG, 37, PW - MARG, 37);
+
+    // ── Cards de métricas (4 em linha) ──
+    const cardY   = 50;
+    const cardH   = 28;
+    const cardW   = (PW - MARG * 2 - 9) / 4;
+    const metricas = [
+      { label: 'Faturamento Total', valor: fmt.brl(faturamentoTotal), cor: SUCCESS },
+      { label: 'Ticket Médio',      valor: fmt.brl(ticketMedio),      cor: TEXT    },
+      { label: 'Atendimentos',      valor: String(totalConcluidos),    cor: TEXT    },
+      { label: 'Serviço Top',       valor: Object.keys(contagemServicos).length > 0
+          ? Object.keys(contagemServicos).reduce((a,b) => contagemServicos[a]>contagemServicos[b]?a:b)
+          : '—',                                                        cor: COLAR  }
+    ];
+
+    metricas.forEach((m, i) => {
+      const x = MARG + i * (cardW + 3);
+      roundRect(x, cardY, cardW, cardH, 2, '#0f1520');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(MUTED);
+      doc.text(m.label.toUpperCase(), x + 4, cardY + 8);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(i === 3 ? 8 : 11);
+      doc.setTextColor(m.cor);
+      doc.text(m.valor, x + 4, cardY + 20, { maxWidth: cardW - 6 });
+    });
+
+    // ── Gráfico de barras: faturamento por dia ──
+    const chartY   = cardY + cardH + 12;
+    const chartH   = 48;
+    const chartW   = PW - MARG * 2;
+    const dias     = Object.keys(faturamentoPorDia);
+    const valores  = Object.values(faturamentoPorDia);
+    const maxVal   = Math.max(...valores, 1);
+
+    // Título da seção
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(MUTED);
+    doc.text('FATURAMENTO POR DIA', MARG, chartY - 3);
+
+    // Fundo do chart
+    roundRect(MARG, chartY, chartW, chartH + 8, 2, '#0f1520');
+
+    // Linha de base
+    doc.setDrawColor('#1d2d3f');
+    doc.setLineWidth(0.2);
+    doc.line(MARG + 4, chartY + chartH + 2, MARG + chartW - 4, chartY + chartH + 2);
+
+    if (dias.length > 0) {
+      const barW    = Math.min(8, (chartW - 16) / dias.length - 2);
+      const spacing = (chartW - 16) / dias.length;
+      dias.forEach((dia, i) => {
+        const val    = valores[i];
+        const barH   = Math.max(2, (val / maxVal) * (chartH - 6));
+        const bx     = MARG + 8 + i * spacing;
+        const by     = chartY + 2 + (chartH - barH - 4);
+
+        // Barra
+        doc.setFillColor(COLAR);
+        doc.roundedRect(bx, by, barW, barH, 1, 1, 'F');
+
+        // Valor acima
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(5);
+        doc.setTextColor(MUTED);
+        const valStr = fmt.brl(val).replace('R$\u00a0','R$');
+        doc.text(valStr, bx + barW / 2, by - 1, { align: 'center', maxWidth: spacing - 1 });
+
+        // Label dia
+        doc.text(dia, bx + barW / 2, chartY + chartH + 6, { align: 'center' });
+      });
+    } else {
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(9);
+      doc.setTextColor(MUTED);
+      doc.text('Nenhum atendimento concluído no período.', PW / 2, chartY + chartH / 2, { align: 'center' });
+    }
+
+    // ── Distribuição de serviços ──
+    const servY = chartY + chartH + 24;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(MUTED);
+    doc.text('DISTRIBUIÇÃO DE SERVIÇOS', MARG, servY - 3);
+
+    const CORES_PDF = [COLAR, '#3b82f6', '#22c55e', '#a855f7', '#f97316', '#e8b56a'];
+    const nomesS    = Object.keys(contagemServicos);
+    const totalS    = Object.values(contagemServicos).reduce((a,b)=>a+b,0) || 1;
+    const colW      = (PW - MARG * 2 - 6) / 2;
+
+    nomesS.forEach((nome, i) => {
+      const qtd  = contagemServicos[nome];
+      const pct  = Math.round((qtd / totalS) * 100);
+      const col  = i % 2;
+      const row  = Math.floor(i / 2);
+      const sx   = MARG + col * (colW + 6);
+      const sy   = servY + row * 12;
+      const cor  = CORES_PDF[i % CORES_PDF.length];
+
+      // Bolinha colorida
+      doc.setFillColor(cor);
+      doc.circle(sx + 2, sy + 2, 2, 'F');
+
+      // Nome + contagem
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(TEXT);
+      doc.text(nome, sx + 6, sy + 3.5, { maxWidth: colW - 30 });
+
+      // Barra de progresso
+      const barX = sx + 6;
+      const barY = sy + 6;
+      const bW   = colW - 30;
+      doc.setFillColor('#1d2d3f');
+      doc.roundedRect(barX, barY, bW, 2.5, 1, 1, 'F');
+      doc.setFillColor(cor);
+      doc.roundedRect(barX, barY, (pct / 100) * bW, 2.5, 1, 1, 'F');
+
+      // Percentual
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(cor);
+      doc.text(`${qtd}x (${pct}%)`, sx + colW - 2, sy + 3.5, { align: 'right' });
+    });
+
+    // ── Rodapé página 1 ──
+    const rodapeY = PH - 10;
+    doc.setDrawColor('#1d2d3f');
+    doc.setLineWidth(0.3);
+    doc.line(MARG, rodapeY - 4, PW - MARG, rodapeY - 4);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(MUTED);
+    doc.text('UaiBarber — Sistema de Gestão para Barbearias', MARG, rodapeY);
+    doc.text('Documento gerado automaticamente · Não requer assinatura · Pág. 1', PW - MARG, rodapeY, { align: 'right' });
+
+    // ─────────────────────────────────────────────
+    // PÁGINA 2 — TABELA DETALHADA
+    // ─────────────────────────────────────────────
+    doc.addPage();
+
+    // Cabeçalho compacto
+    roundRect(0, 0, PW, 22, 0, DARK);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(COLAR);
+    doc.text(barbearia, MARG, 10);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(MUTED);
+    doc.text(`Atendimentos Concluídos — ${labPeriodo}`, MARG, 17);
+    doc.text(`Pág. 2`, PW - MARG, 17, { align: 'right' });
+
+    // ── Cabeçalho da tabela ──
+    const tY      = 30;
+    const cols    = [
+      { label: 'Cliente',   x: MARG,      w: 52 },
+      { label: 'Serviço',   x: MARG + 52, w: 52 },
+      { label: 'WhatsApp',  x: MARG + 104,w: 40 },
+      { label: 'Data/Hora', x: MARG + 144,w: 30 },
+      { label: 'Valor',     x: MARG + 174,w: 22 }
+    ];
+
+    roundRect(MARG, tY, PW - MARG * 2, 8, 1, '#0f1520');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(MUTED);
+    cols.forEach(c => doc.text(c.label.toUpperCase(), c.x + 2, tY + 5.5));
+
+    // ── Linhas da tabela ──
+    let rowY = tY + 10;
+    const rowH = 8;
+
+    if (concluidos.length === 0) {
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(9);
+      doc.setTextColor(MUTED);
+      doc.text('Nenhum atendimento concluído no período selecionado.', PW / 2, rowY + 10, { align: 'center' });
+    }
+
+    concluidos.forEach((a, i) => {
+      // Nova página se ultrapassar a margem inferior
+      if (rowY + rowH > PH - 16) {
+        // Rodapé da página corrente
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(MUTED);
+        doc.text(`UaiBarber · Pág. ${doc.internal.getCurrentPageInfo().pageNumber}`, PW - MARG, PH - 8, { align: 'right' });
+        doc.addPage();
+        // Cabeçalho simples nas páginas extras
+        roundRect(0, 0, PW, 12, 0, DARK);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(COLAR);
+        doc.text(`${barbearia} · Continuação`, MARG, 8);
+        rowY = 18;
+        // Repete cabeçalho da tabela
+        roundRect(MARG, rowY, PW - MARG * 2, 8, 1, '#0f1520');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(MUTED);
+        cols.forEach(c => doc.text(c.label.toUpperCase(), c.x + 2, rowY + 5.5));
+        rowY += 10;
+      }
+
+      // Fundo alternado
+      if (i % 2 === 0) roundRect(MARG, rowY, PW - MARG * 2, rowH, 0, '#0a1018');
+
+      const dtFmt = new Date(a.horario_inicio).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit', timeZone:'UTC' })
+        + ' ' + new Date(a.horario_inicio).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit', timeZone:'UTC' });
+
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(TEXT);
+      doc.text(a.nome_cliente || '—',             cols[0].x + 2, rowY + 5.5, { maxWidth: cols[0].w - 3 });
+      doc.setTextColor(MUTED);
+      doc.text(a.servicos?.nome || '—',           cols[1].x + 2, rowY + 5.5, { maxWidth: cols[1].w - 3 });
+      doc.text(a.whatsapp_cliente || '—',         cols[2].x + 2, rowY + 5.5, { maxWidth: cols[2].w - 3 });
+      doc.text(dtFmt,                             cols[3].x + 2, rowY + 5.5, { maxWidth: cols[3].w - 3 });
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(COLAR);
+      doc.text(fmt.brl(a.servicos?.preco || 0),  cols[4].x + cols[4].w - 2, rowY + 5.5, { align: 'right' });
+
+      // Linha separadora leve
+      doc.setDrawColor('#1d2d3f'); doc.setLineWidth(0.15);
+      doc.line(MARG, rowY + rowH, PW - MARG, rowY + rowH);
+
+      rowY += rowH;
+    });
+
+    // ── Linha de total ──
+    rowY += 2;
+    roundRect(MARG, rowY, PW - MARG * 2, 9, 1, '#0f1520');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(TEXT);
+    doc.text(`Total: ${totalConcluidos} atendimento${totalConcluidos !== 1 ? 's' : ''}`, MARG + 4, rowY + 6);
+    doc.setTextColor(SUCCESS);
+    doc.text(fmt.brl(faturamentoTotal), PW - MARG - 2, rowY + 6, { align: 'right' });
+
+    // ── Rodapé final ──
+    const rf2 = PH - 10;
+    doc.setDrawColor('#1d2d3f'); doc.setLineWidth(0.3);
+    doc.line(MARG, rf2 - 4, PW - MARG, rf2 - 4);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(MUTED);
+    doc.text('UaiBarber — Sistema de Gestão para Barbearias', MARG, rf2);
+    doc.text(`Documento gerado automaticamente · ${hoje} · Pág. ${doc.internal.getCurrentPageInfo().pageNumber}`, PW - MARG, rf2, { align: 'right' });
+
+    // ── Salva o arquivo ──
+    const nomeArq = `UaiBarber_Relatorio_${labPeriodo.replace(/\s/g,'_').replace(/\//g,'-')}_${hoje.replace(/\//g,'-')}.pdf`;
+    doc.save(nomeArq);
+
+  } catch (err) {
+    console.error('Erro ao gerar PDF:', err);
+    alert('Não foi possível gerar o PDF. Tente novamente.');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="12" x2="12" y2="18"/><polyline points="9 15 12 18 15 15"/></svg> Exportar PDF`;
+    }
+  }
+}
+
+
 /* ────── CRIAÇÃO DE SERVIÇOS ────── */
 async function salvarServico() {
   const nome    = $('service-nome').value.trim();
@@ -1154,6 +1521,8 @@ function bindEvents() {
       closeSidebar();
     });
   });
+
+  $('btn-exportar-pdf')?.addEventListener('click', exportarRelatorioPDF);
 
   $('btn-prev-day').addEventListener('click', () => { state.currentDate.setDate(state.currentDate.getDate()-1); updateDateLabel(); loadAgenda(state.currentDate); });
   $('btn-next-day').addEventListener('click', () => { state.currentDate.setDate(state.currentDate.getDate()+1); updateDateLabel(); loadAgenda(state.currentDate); });
