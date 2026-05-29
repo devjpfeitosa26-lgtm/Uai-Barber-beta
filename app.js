@@ -23,7 +23,13 @@ const state = {
     servicoCriadoId: null
   },
   tour: { ativa: false, etapaAtual: 0 },
-  online: navigator.onLine   // ← MELHORIA 3: rastreia conectividade
+  online: navigator.onLine,   // ← rastreia conectividade
+  recorrencia: {},             // ← MELHORIA 6: { whatsapp: totalConcluidos }
+  relatorioFiltro: {           // ← MELHORIA 5: estado do filtro de período
+    tipo: 'mes',               // 'semana' | 'mes' | 'custom'
+    inicio: null,
+    fim: null
+  }
 };
 
 /* ────── HELPERS ────── */
@@ -273,6 +279,24 @@ async function loadAgenda(date) {
   if (!err1 && appts) state.agendamentos = appts;
   if (!err2 && blks) state.bloqueios = blks;
 
+  // ── MELHORIA 6: Conta visitas concluídas por whatsapp para badge de fidelidade ──
+  // Busca TODOS os agendamentos concluídos (sem filtro de data) para medir recorrência real
+  const whatsapps = [...new Set(appts?.map(a => a.whatsapp_cliente).filter(Boolean) || [])];
+  if (whatsapps.length > 0) {
+    const { data: historico } = await sb
+      .from('agendamentos')
+      .select('whatsapp_cliente')
+      .eq('status', 'concluido')
+      .in('whatsapp_cliente', whatsapps);
+
+    state.recorrencia = {};
+    (historico || []).forEach(a => {
+      state.recorrencia[a.whatsapp_cliente] = (state.recorrencia[a.whatsapp_cliente] || 0) + 1;
+    });
+  } else {
+    state.recorrencia = {};
+  }
+
   renderTimeline();
 }
 
@@ -437,10 +461,17 @@ function renderTimeline() {
         ? 'Enviar mensagem de agradecimento'
         : 'Enviar confirmação por WhatsApp';
 
+      // ── MELHORIA 6: Badge de cliente recorrente ──
+      const visitas = state.recorrencia[item.whatsapp_cliente] || 0;
+      let badgeFidelidade = '';
+      if (visitas >= 10)     badgeFidelidade = `<span class="badge-fiel badge-fiel-ouro"   title="${visitas} visitas concluídas">💎 VIP</span>`;
+      else if (visitas >= 5) badgeFidelidade = `<span class="badge-fiel badge-fiel-prata"  title="${visitas} visitas concluídas">⭐ Fiel</span>`;
+      else if (visitas >= 2) badgeFidelidade = `<span class="badge-fiel badge-fiel-bronze" title="${visitas} visitas concluídas">↩ Voltou</span>`;
+
       card.innerHTML = `
         <div class="appt-time">⏰ ${fmt.time(item.horario_inicio)}</div>
         <div class="appt-info-main">
-          <div class="appt-client-name">${item.nome_cliente}</div>
+          <div class="appt-client-name">${item.nome_cliente} ${badgeFidelidade}</div>
           <div class="appt-service-tag">${item.servicos?.nome || 'Serviço não identificado'} — <span style="color:var(--gold-light); font-weight:600;">${fmt.brl(item.servicos?.preco)}</span></div>
         </div>
         <div class="appt-actions-cell">
@@ -454,6 +485,7 @@ function renderTimeline() {
           ` : ''}
           ${item.status === 'confirmado' || item.status === 'pendente' ? `
             <button class="btn-icon" style="color:var(--success);" title="Concluir Atendimento" onclick="alterarStatus('${item.id}', 'concluido', event)">✔</button>
+            <button class="btn-icon" style="color:#60a5fa;" title="Remarcar Agendamento" onclick="abrirRemarcar('${item.id}', '${item.horario_inicio}', event)">📅</button>
             <button class="btn-icon" style="color:var(--danger);" title="Cancelar Agendamento" onclick="alterarStatus('${item.id}', 'cancelado', event)">✖</button>
           ` : ''}
         </div>
@@ -552,9 +584,82 @@ async function removerBloqueio(id, event) {
   }
 }
 
-/* ────── RECURSO: RELATÓRIO FINANCEIRO VISUAL ────── */
+/* ══════════════════════════════════════════════════════════════
+   MELHORIA 5: RELATÓRIO FINANCEIRO COM FILTRO DE PERÍODO
+   ══════════════════════════════════════════════════════════════ */
+
+/**
+ * Calcula o intervalo de datas de acordo com o filtro ativo em state.relatorioFiltro.
+ * Retorna { inicio: Date, fim: Date } já com hora 00:00 e 23:59 respectivos.
+ */
+function calcularIntervaloRelatorio() {
+  const hoje = new Date();
+  const tipo = state.relatorioFiltro.tipo;
+
+  if (tipo === 'semana') {
+    // Semana atual: segunda-feira até domingo
+    const diaSemana = hoje.getDay(); // 0=dom, 1=seg...
+    const diasAteSeg = diaSemana === 0 ? 6 : diaSemana - 1;
+    const seg = new Date(hoje);
+    seg.setDate(hoje.getDate() - diasAteSeg);
+    seg.setHours(0, 0, 0, 0);
+    const dom = new Date(seg);
+    dom.setDate(seg.getDate() + 6);
+    dom.setHours(23, 59, 59, 999);
+    return { inicio: seg, fim: dom };
+  }
+
+  if (tipo === 'mes') {
+    // Mês corrente: dia 1 até último dia
+    const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1, 0, 0, 0, 0);
+    const fim    = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59, 999);
+    return { inicio, fim };
+  }
+
+  if (tipo === 'custom' && state.relatorioFiltro.inicio && state.relatorioFiltro.fim) {
+    const inicio = new Date(state.relatorioFiltro.inicio + 'T00:00:00');
+    const fim    = new Date(state.relatorioFiltro.fim    + 'T23:59:59');
+    return { inicio, fim };
+  }
+
+  // Fallback: mês corrente
+  const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1, 0, 0, 0, 0);
+  const fim    = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59, 999);
+  return { inicio, fim };
+}
+
+/**
+ * Atualiza os chips de período e os inputs de data customizados,
+ * depois dispara a renderização do relatório.
+ */
+function aplicarFiltroRelatorio(tipo) {
+  state.relatorioFiltro.tipo = tipo;
+
+  // Atualiza chips ativos
+  document.querySelectorAll('.periodo-chip').forEach(c => {
+    c.classList.toggle('active', c.dataset.periodo === tipo);
+  });
+
+  // Mostra/oculta inputs de período customizado
+  const customRow = $('rep-custom-periodo');
+  if (customRow) customRow.style.display = tipo === 'custom' ? 'flex' : 'none';
+
+  renderizarRelatoriosVisuais();
+}
+
+/**
+ * Renderiza métricas e gráficos filtrados pelo período selecionado.
+ */
 async function renderizarRelatoriosVisuais() {
-  const { data: appts, error } = await sb.from('agendamentos').select('*, servicos(*)');
+  const { inicio, fim } = calcularIntervaloRelatorio();
+
+  // Busca apenas os agendamentos dentro do período selecionado
+  const { data: appts, error } = await sb
+    .from('agendamentos')
+    .select('*, servicos(*)')
+    .gte('horario_inicio', inicio.toISOString())
+    .lte('horario_inicio', fim.toISOString());
+
   if (error || !appts) return;
 
   const concluidos = appts.filter(a => a.status === 'concluido');
@@ -567,7 +672,10 @@ async function renderizarRelatoriosVisuais() {
     const nome = a.servicos?.nome || 'Não identificado';
     contagemServicos[nome] = (contagemServicos[nome] || 0) + 1;
   });
-  const servicoMaisVendido = Object.keys(contagemServicos).reduce((a, b) => contagemServicos[a] > contagemServicos[b] ? a : b, '-');
+  const nomesServicos = Object.keys(contagemServicos);
+  const servicoMaisVendido = nomesServicos.length > 0
+    ? nomesServicos.reduce((a, b) => contagemServicos[a] > contagemServicos[b] ? a : b)
+    : '-';
 
   $('rep-ticket-medio').textContent = fmt.brl(ticketMedio);
   $('rep-servico-topo').textContent = servicoMaisVendido;
@@ -613,9 +721,9 @@ async function renderizarRelatoriosVisuais() {
   state.charts.servicos = new Chart(ctxServicos, {
     type: 'doughnut',
     data: {
-      labels: Object.keys(contagemServicos),
+      labels: nomesServicos.length > 0 ? nomesServicos : ['Sem dados'],
       datasets: [{
-        data: Object.values(contagemServicos),
+        data: nomesServicos.length > 0 ? Object.values(contagemServicos) : [1],
         backgroundColor: ['#c9933a', '#e8b56a', '#3b82f6', '#22c55e', '#a855f7', '#f97316'],
         borderColor: '#0c1118',
         borderWidth: 2
@@ -688,6 +796,76 @@ async function alterarStatus(id, novoStatus, event) {
   const { error } = await sb.from('agendamentos').update({ status: novoStatus }).eq('id', id);
   if (!error) loadAgenda(state.currentDate);
 }
+
+/* ══════════════════════════════════════════════════════════════
+   MELHORIA 5: REMARCAR AGENDAMENTO
+   Abre um modal com o horário atual pré-preenchido.
+   O barbeiro escolhe o novo horário e confirma — faz UPDATE no Supabase.
+   ══════════════════════════════════════════════════════════════ */
+
+/**
+ * Abre o modal de reagendamento com o horário atual pré-preenchido.
+ * @param {string} id          - UUID do agendamento
+ * @param {string} horarioISO  - ISO string do horário atual
+ * @param {Event}  event       - Evento do clique (para stopPropagation)
+ */
+function abrirRemarcar(id, horarioISO, event) {
+  if (event) event.stopPropagation();
+
+  // Converte ISO → formato datetime-local (YYYY-MM-DDTHH:mm)
+  // O horário está em UTC, converte para local para exibição no input
+  const dt = new Date(horarioISO);
+  const pad = n => String(n).padStart(2, '0');
+  const localStr = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+
+  $('remarcar-id').value      = id;
+  $('remarcar-horario').value = localStr;
+  setFeedback('remarcar-feedback', '', '');
+  $('modal-remarcar').classList.add('open');
+}
+
+/**
+ * Salva o novo horário do agendamento.
+ * Valida que o horário não está no passado e atualiza no Supabase.
+ */
+async function salvarRemarcar() {
+  const id      = $('remarcar-id').value;
+  const horario = $('remarcar-horario').value;
+
+  if (!horario) {
+    setFeedback('remarcar-feedback', 'Selecione o novo horário.', 'error');
+    return;
+  }
+
+  const novoHorario = new Date(horario);
+  if (novoHorario < new Date()) {
+    setFeedback('remarcar-feedback', 'Não é possível remarcar para um horário já passado.', 'error');
+    return;
+  }
+
+  const btn = $('btn-salvar-remarcar');
+  btn.textContent = 'Salvando...';
+  btn.disabled = true;
+
+  const { error } = await sb
+    .from('agendamentos')
+    .update({ horario_inicio: novoHorario.toISOString() })
+    .eq('id', id);
+
+  btn.textContent = 'Confirmar Remarcação';
+  btn.disabled = false;
+
+  if (error) {
+    setFeedback('remarcar-feedback', 'Erro ao remarcar: ' + error.message, 'error');
+  } else {
+    setFeedback('remarcar-feedback', '✔ Remarcado com sucesso!', 'success');
+    setTimeout(() => {
+      $('modal-remarcar').classList.remove('open');
+      loadAgenda(state.currentDate);
+    }, 900);
+  }
+}
+
 
 async function criarAgendamentoManual() {
   const nome      = $('appt-nome').value.trim();
@@ -919,6 +1097,79 @@ function injetarEstilosTour() {
   const style = document.createElement('style');
   style.id = 'tour-styles';
   style.textContent = `
+    /* ── Badges de fidelidade (MELHORIA 6) ── */
+    .badge-fiel {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 7px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      vertical-align: middle;
+      margin-left: 6px;
+    }
+    .badge-fiel-bronze {
+      background: rgba(180,120,60,0.15);
+      color: #cd7f32;
+      border: 1px solid rgba(205,127,50,0.3);
+    }
+    .badge-fiel-prata {
+      background: rgba(201,147,58,0.15);
+      color: var(--gold-light);
+      border: 1px solid rgba(201,147,58,0.35);
+    }
+    .badge-fiel-ouro {
+      background: rgba(99,179,237,0.12);
+      color: #90cdf4;
+      border: 1px solid rgba(99,179,237,0.3);
+    }
+
+    /* ── Filtro de período nos relatórios (MELHORIA 5) ── */
+    .periodo-filtros {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .periodo-chip {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 7px 14px;
+      border-radius: var(--radius);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .periodo-chip:hover { background: rgba(255,255,255,0.07); color: var(--text); }
+    .periodo-chip.active {
+      background: var(--gold-dim);
+      border-color: rgba(201,147,58,0.3);
+      color: var(--gold-light);
+      font-weight: 600;
+    }
+    #rep-custom-periodo {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    #rep-custom-periodo input[type="date"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 7px 12px;
+      border-radius: var(--radius);
+      font-family: inherit;
+      font-size: 12px;
+    }
+    #rep-custom-periodo input[type="date"]:focus { border-color: var(--gold); outline: none; }
+    #rep-custom-periodo .btn-primary { padding: 7px 14px; font-size: 12px; }
+
     /* ── Free Slot Chips (MELHORIA 4) ── */
     .free-slot-chip {
       display: flex;
@@ -1204,6 +1455,27 @@ function bindEvents() {
   $('refresh-btn').addEventListener('click', () => loadAgenda(state.currentDate));
   $('logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); window.location.replace('./index.html'); });
   $('btn-close-alert').addEventListener('click', () => $('modal-alert').classList.remove('open'));
+
+  // ── MELHORIA 5: Modal de Remarcar ──
+  $('btn-cancelar-remarcar').addEventListener('click', () => $('modal-remarcar').classList.remove('open'));
+  $('btn-salvar-remarcar').addEventListener('click', salvarRemarcar);
+
+  // ── MELHORIA 5: Filtros de período nos relatórios ──
+  document.querySelectorAll('.periodo-chip').forEach(chip => {
+    chip.addEventListener('click', () => aplicarFiltroRelatorio(chip.dataset.periodo));
+  });
+  $('rep-btn-aplicar-custom')?.addEventListener('click', () => {
+    const ini = $('rep-custom-inicio').value;
+    const fim = $('rep-custom-fim').value;
+    if (!ini || !fim) return;
+    if (new Date(ini) > new Date(fim)) {
+      alert('A data de início deve ser anterior à data de fim.');
+      return;
+    }
+    state.relatorioFiltro.inicio = ini;
+    state.relatorioFiltro.fim    = fim;
+    renderizarRelatoriosVisuais();
+  });
 
   $('mobile-menu-btn').addEventListener('click', () => { $('sidebar').classList.add('open'); $('sidebar-overlay').style.display = 'block'; });
   $('sidebar-overlay').addEventListener('click', closeSidebar);
