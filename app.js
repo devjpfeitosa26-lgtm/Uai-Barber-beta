@@ -1000,24 +1000,29 @@ async function exportarRelatorioPDF() {
       txt('Faturado',   ML+CW-3,     y+5, { size:7.5, bold:true, cor:C.white, align:'right' });
       y += 7;
       var tabelaTop = y;
-      ranking.forEach(function(entry, i) {
+      var rankView = ranking.slice(0, 5);
+      rankView.forEach(function(entry, i) {
         var nome = entry[0], d = entry[1];
-        var rh = 8;
+        var rh = 7.5;
         var pct = fatTotal > 0 ? (d.total / fatTotal * 100) : 0;
         rect(ML, y, CW, rh, i%2===0 ? C.white : C.bgAlt);
         var rankCores = [C.gold, [140,140,145], [160,110,50]];
         var cb = rankCores[i] || C.light;
-        doc.setFillColor(cb[0],cb[1],cb[2]); doc.circle(ML+5, y+4, 2, 'F');
-        txt(String(i+1), ML+5, y+5.5, { size:6, bold:true, cor:C.white, align:'center' });
+        doc.setFillColor(cb[0],cb[1],cb[2]); doc.circle(ML+5, y+3.8, 2, 'F');
+        txt(String(i+1), ML+5, y+5.2, { size:6, bold:true, cor:C.white, align:'center' });
         var nomeTxt = nome.length > 38 ? nome.slice(0,36)+'...' : nome;
-        txt(nomeTxt,          ML+11,       y+5.5, { size:8, cor:C.dark });
-        txt(d.qtd+'x',        ML+CW*0.60,  y+5.5, { size:8, bold:true, cor:C.blue, align:'center' });
-        txt(pct.toFixed(1)+'%', ML+CW*0.75, y+5.5, { size:8, cor:C.mid, align:'center' });
-        txt(fmt.brl(d.total), ML+CW-3,     y+5.5, { size:8, bold:true, cor:C.green, align:'right' });
+        txt(nomeTxt,          ML+11,       y+5.2, { size:8, cor:C.dark });
+        txt(d.qtd+'x',        ML+CW*0.60,  y+5.2, { size:8, bold:true, cor:C.blue, align:'center' });
+        txt(pct.toFixed(1)+'%', ML+CW*0.75, y+5.2, { size:8, cor:C.mid, align:'center' });
+        txt(fmt.brl(d.total), ML+CW-3,     y+5.2, { size:8, bold:true, cor:C.green, align:'right' });
         hline(ML, y+rh, ML+CW, C.border, 0.15);
         y += rh;
       });
       bord(ML, tabelaTop, CW, y-tabelaTop, C.border, 0.3);
+      if (ranking.length > 5) {
+        y += 4;
+        txt('+ ' + (ranking.length - 5) + ' outros servicos (ver grafico abaixo)', ML+2, y, { size:6.5, cor:C.light });
+      }
     }
 
     // Grafico de barras
@@ -1040,8 +1045,8 @@ async function exportarRelatorioPDF() {
       txt('Nenhum faturamento no periodo.', PW/2, y+11, { size:9, cor:C.light, align:'center' });
       y += 22;
     } else {
-      var chartH = 36;
-      var boxH = chartH + 14;
+      var chartH = 30;
+      var boxH = chartH + 12;
       rrect(ML, y, CW, boxH, 2, C.bgAlt);
 
       // area do plot (espaco a esquerda para rotulos do eixo Y)
@@ -1054,11 +1059,11 @@ async function exportarRelatorioPDF() {
       // grade + rotulos eixo Y
       for (var g=0; g<=3; g++) {
         var gy = baseY - (g/3)*(chartH-6);
-        hline(plotL, gy, plotR, [215,220,230], 0.2);
+        hline(plotL, gy, plotR, [170,178,190], 0.35);
         var gv = fmt.brl((maxVal*g)/3).replace('R$\u00a0','R$');
-        txt(gv, ML+18, gy+1, { size:5, cor:C.light, align:'right' });
+        txt(gv, ML+18, gy+1, { size:5.5, cor:C.mid, align:'right' });
       }
-      hline(plotL, baseY, plotR, [180,185,195], 0.4);
+      hline(plotL, baseY, plotR, [110,120,135], 0.6);
 
       // barras com largura fixa, grupo centralizado no plot
       var n = dias.length;
@@ -1075,10 +1080,94 @@ async function exportarRelatorioPDF() {
         var by = baseY - bh;
         rrect(bx, by, barW, bh, 1, C.gold);
         var vStr = fmt.brl(v).replace('R$\u00a0','R$');
-        txt(vStr, cxSlot, by-1.5, { size:5, bold:true, cor:C.gold, align:'center' });
-        txt(dia, cxSlot, baseY+5, { size:6, cor:C.mid, align:'center' });
+        txt(vStr, cxSlot, by-1.5, { size:5.5, bold:true, cor:C.dark, align:'center' });
+        txt(dia, cxSlot, baseY+5, { size:6.5, cor:C.dark, align:'center' });
       });
       y += boxH + 6;
+    }
+
+    /* ── Grafico de PIZZA: distribuicao de servicos ── */
+    y += 2;
+    txt('DISTRIBUICAO DE SERVICOS', ML, y, { size:8, bold:true, cor:C.mid });
+    hline(ML, y+2, PW-MR, C.border, 0.4);
+    y += 7;
+
+    // Cores iguais as do site
+    var PIE_CORES = [
+      [201,147,58],  // #c9933a
+      [232,181,106], // #e8b56a
+      [59,130,246],  // #3b82f6
+      [34,197,94],   // #22c55e
+      [168,85,247],  // #a855f7
+      [249,115,22],  // #f97316
+    ];
+
+    if (ranking.length === 0) {
+      rrect(ML, y, CW, 18, 2, C.bgAlt);
+      txt('Sem servicos concluidos para exibir.', PW/2, y+11, { size:9, cor:C.light, align:'center' });
+      y += 22;
+    } else {
+      var pieBoxH = 48;
+      rrect(ML, y, CW, pieBoxH, 2, C.bgAlt);
+
+      // Centro e raio da pizza (lado esquerdo da caixa)
+      var cxP = ML + 32;
+      var cyP = y + pieBoxH/2;
+      var rP  = 19;
+
+      var totalQtd = ranking.reduce(function(s, e){ return s + e[1].qtd; }, 0) || 1;
+
+      // Desenha cada fatia como leque de triangulos finos
+      var ang = -90 * Math.PI/180; // comeca no topo
+      ranking.forEach(function(entry, idx) {
+        var qtd = entry[1].qtd;
+        var frac = qtd / totalQtd;
+        var sweep = frac * 2 * Math.PI;
+        var cor = PIE_CORES[idx % PIE_CORES.length];
+        doc.setFillColor(cor[0], cor[1], cor[2]);
+
+        // sub-divide o setor em passos pequenos para borda suave
+        var steps = Math.max(2, Math.ceil((sweep) / (4*Math.PI/180)));
+        var step = sweep / steps;
+        for (var s2=0; s2<steps; s2++) {
+          var a0 = ang + s2*step;
+          var a1 = ang + (s2+1)*step;
+          var x0 = cxP + rP*Math.cos(a0);
+          var y0 = cyP + rP*Math.sin(a0);
+          var x1 = cxP + rP*Math.cos(a1);
+          var y1 = cyP + rP*Math.sin(a1);
+          // triangulo: centro -> ponto0 -> ponto1
+          doc.triangle(cxP, cyP, x0, y0, x1, y1, 'F');
+        }
+        ang += sweep;
+      });
+
+      // Furo central (efeito doughnut) com a cor de fundo da caixa
+      doc.setFillColor(C.bgAlt[0], C.bgAlt[1], C.bgAlt[2]);
+      doc.circle(cxP, cyP, rP*0.52, 'F');
+      // total no centro
+      txt(String(totalQtd), cxP, cyP-0.5, { size:11, bold:true, cor:C.dark, align:'center' });
+      txt('cortes', cxP, cyP+4, { size:5.5, cor:C.mid, align:'center' });
+
+      // Legenda a direita
+      var legX = cxP + rP + 14;
+      var legY = y + 9;
+      var legLineH = Math.min(8, (pieBoxH - 14) / Math.max(ranking.length, 1));
+      ranking.forEach(function(entry, idx) {
+        var nome = entry[0];
+        var qtd = entry[1].qtd;
+        var frac = qtd / totalQtd;
+        var cor = PIE_CORES[idx % PIE_CORES.length];
+        // quadradinho de cor
+        doc.setFillColor(cor[0], cor[1], cor[2]);
+        doc.roundedRect(legX, legY - 2.6, 3.2, 3.2, 0.5, 0.5, 'F');
+        var nomeTxt = nome.length > 32 ? nome.slice(0,30)+'...' : nome;
+        txt(nomeTxt, legX + 5.5, legY, { size:7.5, cor:C.dark });
+        txt(qtd + 'x  (' + (frac*100).toFixed(0) + '%)', ML + CW - 4, legY, { size:7.5, bold:true, cor:[cor[0],cor[1],cor[2]], align:'right' });
+        legY += legLineH;
+      });
+
+      y += pieBoxH + 6;
     }
 
     rodape(1, 2);
