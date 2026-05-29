@@ -41,6 +41,7 @@
 
     .btn-primary { background: var(--gold); border: none; padding: 10px 18px; border-radius: var(--radius); color: #000; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s; }
     .btn-primary:hover { background: var(--gold-light); }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
     .btn-secondary { background: rgba(255,255,255,0.04); border: 1px solid var(--border-2); padding: 10px 18px; border-radius: var(--radius); color: var(--text); font-weight: 500; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s; }
     .btn-secondary:hover { background: rgba(255,255,255,0.08); }
     .mobile-menu-btn { display: none; background: none; border: none; color: var(--text); font-size: 24px; cursor: pointer; }
@@ -68,24 +69,22 @@
     .appt-actions-cell { display: flex; align-items: center; gap: 8px; }
 
     .pill { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-    .pill-pendente { background: rgba(201,147,58,0.1); color: var(--gold-light); border: 1px solid rgba(201,147,58,0.2); }
-    .pill-confirmado { background: rgba(59,130,246,0.1); color: #60a5fa; border: 1px solid rgba(59,130,246,0.2); }
-    .pill-concluido { background: rgba(34,197,94,0.1); color: #4ade80; border: 1px solid rgba(34,197,94,0.2); }
-    .pill-cancelado { background: rgba(239,68,68,0.1); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
-    .pill-bloqueio { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid #ef4444; }
+    .pill-pendente   { background: rgba(201,147,58,0.1);  color: var(--gold-light); border: 1px solid rgba(201,147,58,0.2); }
+    .pill-confirmado { background: rgba(59,130,246,0.1);  color: #60a5fa;           border: 1px solid rgba(59,130,246,0.2); }
+    .pill-concluido  { background: rgba(34,197,94,0.1);   color: #4ade80;           border: 1px solid rgba(34,197,94,0.2); }
+    .pill-cancelado  { background: rgba(239,68,68,0.1);   color: #f87171;           border: 1px solid rgba(239,68,68,0.2); }
+    .pill-bloqueio   { background: rgba(239,68,68,0.15);  color: #f87171;           border: 1px solid #ef4444; }
 
-    /* MELHORIA 6 — Badges de fidelidade */
     .badge-fiel { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 20px; font-size: 10px; font-weight: 700; letter-spacing: 0.3px; vertical-align: middle; white-space: nowrap; }
-    .badge-fiel-bronze { background: rgba(180,120,60,0.15); color: #cd7f32; border: 1px solid rgba(205,127,50,0.3); }
+    .badge-fiel-bronze { background: rgba(180,120,60,0.15); color: #cd7f32;        border: 1px solid rgba(205,127,50,0.3); }
     .badge-fiel-prata  { background: rgba(201,147,58,0.15); color: var(--gold-light); border: 1px solid rgba(201,147,58,0.35); }
-    .badge-fiel-ouro   { background: rgba(99,179,237,0.12); color: #90cdf4; border: 1px solid rgba(99,179,237,0.3); }
+    .badge-fiel-ouro   { background: rgba(99,179,237,0.12); color: #90cdf4;        border: 1px solid rgba(99,179,237,0.3); }
 
     .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
     .metric-card { background: var(--panel); border: 1px solid var(--border); padding: 18px; border-radius: var(--radius); }
     .metric-label { font-size: 12px; color: var(--muted); text-transform: uppercase; font-weight: 600; }
     .metric-value { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 700; margin-top: 6px; }
 
-    /* MELHORIA 5 — Filtro de período */
     .periodo-filtros { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
     .periodo-filtros-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px; }
     .periodo-chip { background: rgba(255,255,255,0.04); border: 1px solid var(--border); color: var(--muted); padding: 7px 14px; border-radius: var(--radius); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
@@ -96,6 +95,10 @@
     #rep-custom-periodo input[type="date"] { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 7px 12px; border-radius: var(--radius); font-family: inherit; font-size: 12px; }
     #rep-custom-periodo input[type="date"]:focus { border-color: var(--gold); outline: none; }
     #rep-custom-periodo .btn-primary { padding: 7px 14px; font-size: 12px; }
+
+    /* Spinner do botão PDF */
+    .pdf-spinner { display: inline-block; width: 13px; height: 13px; border: 2px solid rgba(0,0,0,0.25); border-top-color: #000; border-radius: 50%; animation: spin-pdf 0.7s linear infinite; vertical-align: middle; }
+    @keyframes spin-pdf { to { transform: rotate(360deg); } }
 
     .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(5,7,11,0.92); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; z-index: 999; opacity: 0; pointer-events: none; transition: opacity 0.2s ease; }
     .modal-overlay.open { opacity: 1; pointer-events: auto; }
@@ -110,11 +113,10 @@
     .field input:focus, .field select:focus { border-color: var(--gold); outline: none; }
     .modal-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 24px; }
     .feedback { font-size: 13px; margin-top: 12px; display: none; }
-    .feedback.error { display: block; color: var(--danger); }
+    .feedback.error   { display: block; color: var(--danger); }
     .feedback.success { display: block; color: var(--success); }
     .empty-state { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 14px; }
 
-    /* MELHORIA 5 — Modal remarcar: destaque azul */
     #modal-remarcar .modal-box { border-color: rgba(96,165,250,0.25); }
     #modal-remarcar .modal-title { color: #60a5fa; }
     #modal-remarcar .field input:focus { border-color: #60a5fa; }
@@ -135,6 +137,7 @@
       .periodo-filtros { gap: 6px; }
       .modal-grid { grid-template-columns: 1fr; }
       .field.full { grid-column: span 1; }
+      .rep-header-row { flex-direction: column; align-items: flex-start !important; }
     }
   </style>
 </head>
@@ -210,13 +213,33 @@
 
       <!-- ABA 2: RELATÓRIOS -->
       <div id="view-relatorios" class="view">
-        <!-- MELHORIA 5 — Seletor de período -->
-        <div class="periodo-filtros">
-          <span class="periodo-filtros-label">Período:</span>
-          <button class="periodo-chip" data-periodo="semana">Esta semana</button>
-          <button class="periodo-chip active" data-periodo="mes">Este mês</button>
-          <button class="periodo-chip" data-periodo="custom">Personalizado</button>
+
+        <!-- Cabeçalho: filtros de período + botão Exportar PDF -->
+        <div class="rep-header-row" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:4px;">
+          <div class="periodo-filtros" style="margin-bottom:0;">
+            <span class="periodo-filtros-label">Período:</span>
+            <button class="periodo-chip" data-periodo="semana">Esta semana</button>
+            <button class="periodo-chip active" data-periodo="mes">Este mês</button>
+            <button class="periodo-chip" data-periodo="custom">Personalizado</button>
+          </div>
+
+          <!-- BOTÃO EXPORTAR PDF -->
+          <button
+            id="btn-exportar-pdf"
+            class="btn-primary"
+            title="Baixar relatório do período selecionado em PDF"
+            style="background:#c9933a;"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="12" y1="12" x2="12" y2="18"/>
+              <polyline points="9 15 12 18 15 15"/>
+            </svg>
+            Exportar PDF
+          </button>
         </div>
+
         <div id="rep-custom-periodo">
           <label>De</label>
           <input type="date" id="rep-custom-inicio" />
@@ -268,7 +291,7 @@
     </div>
   </div>
 
-  <!-- ═══════════ MODAL: REMARCAR (MELHORIA 5 — NOVA) ═══════════ -->
+  <!-- MODAL: REMARCAR -->
   <div class="modal-overlay" id="modal-remarcar">
     <div class="modal-box">
       <input type="hidden" id="remarcar-id" />
@@ -414,6 +437,8 @@
   <button class="btn-help-floating" id="btn-help-tutorial" title="Ver Tutorial de Configuração">?</button>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- jsPDF — necessário para o botão Exportar PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
