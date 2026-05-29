@@ -962,22 +962,24 @@ async function exportarRelatorioPDF() {
     txt('Relatorio Financeiro', ML+6, 21, { size:9, cor:[180,190,210] });
     txt('Periodo: ' + labPeriodo, ML+6, 28, { size:8, cor:[140,160,190] });
     txt(hoje, PW-MR, 13, { size:9, cor:[180,190,210], align:'right' });
-    txt(appts.length + ' agend. · ' + concluidos.length + ' concluidos · ' + cancelados.length + ' cancelados', PW-MR, 21, { size:8, cor:[140,160,190], align:'right' });
+    txt(concluidos.length + ' atendimentos concluidos', PW-MR, 21, { size:8, cor:[140,160,190], align:'right' });
 
     // Cards
     var cardY=44, cardH=24, GAP=4, cardW=(CW-GAP*3)/4;
+    var svcTop = ranking.length > 0 ? ranking[0][0] : '—';
+    if (svcTop.length > 16) svcTop = svcTop.slice(0,15) + '...';
     var mets = [
-      { label:'Faturamento Total', valor:fmt.brl(fatTotal),          cor:C.green, bg:C.greenBg },
-      { label:'Ticket Medio',      valor:fmt.brl(ticket),            cor:C.blue,  bg:C.blueBg  },
-      { label:'Concluidos',        valor:String(concluidos.length),   cor:C.green, bg:C.greenBg },
-      { label:'Cancelamentos',     valor:String(cancelados.length),   cor:C.red,   bg:C.redBg   },
+      { label:'Faturamento Total',  valor:fmt.brl(fatTotal),         cor:C.green, bg:C.greenBg },
+      { label:'Ticket Medio',       valor:fmt.brl(ticket),           cor:C.blue,  bg:C.blueBg  },
+      { label:'Atend. Concluidos',  valor:String(concluidos.length),  cor:C.green, bg:C.greenBg },
+      { label:'Servico Mais Vendido', valor:svcTop,                   cor:C.gold,  bg:C.bgCard,  small:true },
     ];
     mets.forEach(function(m, i) {
       var cx = ML + i*(cardW+GAP);
       rrect(cx, cardY, cardW, cardH, 2, m.bg);
       bord(cx, cardY, cardW, cardH, [m.cor[0],m.cor[1],m.cor[2]], 0.4);
-      txt(m.label, cx+cardW/2, cardY+8,  { size:7,  cor:m.cor, align:'center' });
-      txt(m.valor, cx+cardW/2, cardY+18, { size:10, bold:true, cor:m.cor, align:'center', maxW:cardW-4 });
+      txt(m.label, cx+cardW/2, cardY+8,  { size:6.5, cor:m.cor, align:'center', maxW:cardW-3 });
+      txt(m.valor, cx+cardW/2, cardY+18, { size: m.small ? 8 : 10, bold:true, cor:m.cor, align:'center', maxW:cardW-4 });
     });
 
     var y = cardY + cardH + 10;
@@ -1038,25 +1040,45 @@ async function exportarRelatorioPDF() {
       txt('Nenhum faturamento no periodo.', PW/2, y+11, { size:9, cor:C.light, align:'center' });
       y += 22;
     } else {
-      var chartH = 32, barArea = CW-8;
-      var barW = Math.min(12, barArea/dias.length - 2);
-      var space = barArea/dias.length;
-      rrect(ML, y, CW, chartH+10, 2, C.bgAlt);
+      var chartH = 36;
+      var boxH = chartH + 14;
+      rrect(ML, y, CW, boxH, 2, C.bgAlt);
+
+      // area do plot (espaco a esquerda para rotulos do eixo Y)
+      var plotL = ML + 20;
+      var plotR = ML + CW - 6;
+      var plotW = plotR - plotL;
+      var baseY = y + chartH;
+      var topY  = y + 6;
+
+      // grade + rotulos eixo Y
       for (var g=0; g<=3; g++) {
-        var gy = y + chartH - (g/3)*(chartH-8) + 2;
-        hline(ML+4, gy, ML+CW-4, [210,215,225], 0.2);
-        var gv = fmt.brl((maxVal*g)/3).replace('R$ ','R$');
-        txt(gv, ML+4, gy-0.5, { size:5, cor:C.light });
+        var gy = baseY - (g/3)*(chartH-6);
+        hline(plotL, gy, plotR, [215,220,230], 0.2);
+        var gv = fmt.brl((maxVal*g)/3).replace('R$\u00a0','R$');
+        txt(gv, ML+18, gy+1, { size:5, cor:C.light, align:'right' });
       }
+      hline(plotL, baseY, plotR, [180,185,195], 0.4);
+
+      // barras com largura fixa, grupo centralizado no plot
+      var n = dias.length;
+      var slot = plotW / n;
+      var barW = Math.min(16, Math.max(6, slot*0.5));
+      var groupW = n * slot;
+      var startX = plotL + (plotW - groupW)/2;
+
       dias.forEach(function(dia, i) {
         var v = vals[i];
-        var bh = Math.max(2, (v/maxVal)*(chartH-10));
-        var bx = ML+4 + i*space + (space-barW)/2;
-        var by = y + chartH - bh;
+        var bh = Math.max(1.5, (v/maxVal)*(chartH-8));
+        var cxSlot = startX + i*slot + slot/2;
+        var bx = cxSlot - barW/2;
+        var by = baseY - bh;
         rrect(bx, by, barW, bh, 1, C.gold);
-        txt(dia, bx+barW/2, y+chartH+7, { size:5.5, cor:C.mid, align:'center' });
+        var vStr = fmt.brl(v).replace('R$\u00a0','R$');
+        txt(vStr, cxSlot, by-1.5, { size:5, bold:true, cor:C.gold, align:'center' });
+        txt(dia, cxSlot, baseY+5, { size:6, cor:C.mid, align:'center' });
       });
-      y += chartH + 14;
+      y += boxH + 6;
     }
 
     rodape(1, 2);
@@ -1067,23 +1089,22 @@ async function exportarRelatorioPDF() {
     rect(0, 0, PW, 20, C.bgHead);
     rect(0, 0, 4, 20, C.gold);
     txt(barbearia, ML+6, 9,  { size:12, bold:true, cor:C.white });
-    txt('Todos os agendamentos do periodo · ' + labPeriodo, ML+6, 16, { size:8, cor:[160,175,200] });
+    txt('Atendimentos concluidos · ' + labPeriodo, ML+6, 16, { size:8, cor:[160,175,200] });
 
     y = 28;
 
     var cols = [
-      { label:'Data / Hora', x:ML,       w:28 },
-      { label:'Cliente',     x:ML+29,    w:48 },
-      { label:'Servico',     x:ML+78,    w:48 },
-      { label:'WhatsApp',    x:ML+127,   w:32 },
-      { label:'Valor',       x:ML+160,   w:20 },
-      { label:'Status',      x:ML+181,   w:15 },
+      { label:'Data / Hora', x:ML,        w:30 },
+      { label:'Cliente',     x:ML+31,     w:55 },
+      { label:'Servico',     x:ML+87,     w:55 },
+      { label:'WhatsApp',    x:ML+143,    w:33 },
+      { label:'Valor',       x:ML+176,    w:CW-176 },
     ];
 
     function cabTabela(yc) {
       rrect(ML, yc, CW, 7, 1, C.bgHead);
       cols.forEach(function(c) {
-        var isR = ['Valor','Status'].includes(c.label);
+        var isR = c.label === 'Valor';
         txt(c.label, isR ? c.x+c.w-1 : c.x+2, yc+5, { size:7, bold:true, cor:C.white, align: isR ? 'right' : 'left' });
       });
       return yc + 7;
@@ -1091,15 +1112,15 @@ async function exportarRelatorioPDF() {
 
     y = cabTabela(y);
 
-    if (appts.length === 0) {
+    if (concluidos.length === 0) {
       rrect(ML, y, CW, 16, 1, C.bgAlt);
-      txt('Nenhum agendamento encontrado.', PW/2, y+10, { size:9, cor:C.light, align:'center' });
+      txt('Nenhum atendimento concluido no periodo.', PW/2, y+10, { size:9, cor:C.light, align:'center' });
       y += 20;
     }
 
     var pagAtual = 2;
     var tabelaInicioY = y;
-    appts.forEach(function(a, i) {
+    concluidos.forEach(function(a, i) {
       var ROW_H = 8;
       if (y + ROW_H > PH - 18) {
         bord(ML, tabelaInicioY, CW, y-tabelaInicioY, C.border, 0.3);
@@ -1119,19 +1140,11 @@ async function exportarRelatorioPDF() {
       var dtStr = new Date(a.horario_inicio).toLocaleDateString('pt-BR',{ day:'2-digit', month:'2-digit', timeZone:'UTC' })
         + ' ' + new Date(a.horario_inicio).toLocaleTimeString('pt-BR',{ hour:'2-digit', minute:'2-digit', timeZone:'UTC' });
 
-      var nCli = (a.nome_cliente||'—').slice(0,22);
-      var nSvc = (a.servicos?.nome||'—').slice(0,22);
-      var wpp  = (a.whatsapp_cliente||'—').slice(0,16);
+      var nCli = (a.nome_cliente||'-').slice(0,30);
+      var nSvc = (a.servicos?.nome||'-').slice(0,30);
+      var wpp  = (a.whatsapp_cliente||'-').slice(0,16);
       var val  = fmt.brl(a.servicos?.preco||0);
       var cy   = y + ROW_H/2 + 1.5;
-
-      var sMap = {
-        concluido:  { label:'Concluido',  cor:C.green, bg:C.greenBg },
-        cancelado:  { label:'Cancelado',  cor:C.red,   bg:C.redBg   },
-        confirmado: { label:'Confirmado', cor:C.blue,  bg:C.blueBg  },
-        pendente:   { label:'Pendente',   cor:C.mid,   bg:C.bgAlt   },
-      };
-      var si = sMap[a.status] || { label:a.status, cor:C.mid, bg:C.bgAlt };
 
       txt(dtStr, cols[0].x+2, cy, { size:7.5, cor:C.mid  });
       txt(nCli,  cols[1].x+2, cy, { size:7.5, cor:C.dark });
@@ -1139,21 +1152,15 @@ async function exportarRelatorioPDF() {
       txt(wpp,   cols[3].x+2, cy, { size:7,   cor:C.mid  });
       txt(val,   cols[4].x+cols[4].w-1, cy, { size:7.5, bold:true, cor:C.green, align:'right' });
 
-      var pillW=13, pillH=4.5;
-      var pillX = cols[5].x + cols[5].w - pillW - 1;
-      var pillY = y + (ROW_H - pillH)/2;
-      rrect(pillX, pillY, pillW, pillH, 1.5, si.bg);
-      txt(si.label.slice(0,9), pillX+pillW/2, pillY+3.3, { size:5.5, bold:true, cor:si.cor, align:'center' });
-
       hline(ML, y+ROW_H, ML+CW, C.border, 0.15);
       y += ROW_H;
     });
 
-    if (appts.length > 0) bord(ML, tabelaInicioY, CW, y-tabelaInicioY, C.border, 0.3);
+    if (concluidos.length > 0) bord(ML, tabelaInicioY, CW, y-tabelaInicioY, C.border, 0.3);
 
     y += 3;
     rrect(ML, y, CW, 10, 1.5, C.bgHead);
-    txt(appts.length + ' agendamentos  ·  ' + concluidos.length + ' concluidos  ·  ' + cancelados.length + ' cancelados', ML+5, y+6.5, { size:8, cor:C.white });
+    txt(concluidos.length + ' atendimentos concluidos no periodo', ML+5, y+6.5, { size:8, cor:C.white });
     txt(fmt.brl(fatTotal), ML+CW-3, y+6.5, { size:9, bold:true, cor:[130,210,150], align:'right' });
 
     rodape(pagAtual, pagAtual);
